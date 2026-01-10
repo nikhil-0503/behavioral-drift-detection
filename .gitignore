@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Data (raw dataset is huge)
+data/raw/studentlife/
+
+# Flutter
+flutter_app/**/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# OS
+.DS_Store
+Thumbs.db
