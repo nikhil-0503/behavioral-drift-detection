@@ -1,0 +1,7 @@
+[
+  { "date": "2013-04-01", "drift": true },
+  { "date": "2013-04-02", "drift": true },
+  { "date": "2013-04-03", "drift": false },
+  { "date": "2013-04-04", "drift": true },
+  { "date": "2013-04-05", "drift": false }
+]
