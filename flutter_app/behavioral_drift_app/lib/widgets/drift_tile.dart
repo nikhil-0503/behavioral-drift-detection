@@ -8,16 +8,22 @@ class DriftTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool drifted = day.drift;
+
     return Card(
-      color: day.drift ? Colors.red[50] : Colors.green[50],
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
         leading: Icon(
-          day.drift ? Icons.warning : Icons.check_circle,
-          color: day.drift ? Colors.red : Colors.green,
+          drifted ? Icons.warning : Icons.check_circle,
+          color: drifted ? Colors.red : Colors.green,
         ),
         title: Text(day.date),
         subtitle: Text(
-          day.drift ? "Behavioral Drift Detected" : "Normal Behavior",
+          drifted ? 'Drift Detected' : 'No Drift',
+          style: TextStyle(
+            color: drifted ? Colors.red : Colors.green,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

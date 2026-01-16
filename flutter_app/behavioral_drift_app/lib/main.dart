@@ -168,7 +168,6 @@
 //     );
 //   }
 // }
-
 import 'package:flutter/material.dart';
 import 'screens/drift_home.dart';
 
@@ -176,16 +175,38 @@ void main() {
   runApp(const DriftApp());
 }
 
-class DriftApp extends StatelessWidget {
+class DriftApp extends StatefulWidget {
   const DriftApp({super.key});
+
+  @override
+  State<DriftApp> createState() => _DriftAppState();
+}
+
+class _DriftAppState extends State<DriftApp> {
+  bool isDark = true;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Behavioral Drift Detection',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const DriftHome(),
+      theme: ThemeData(
+        brightness: Brightness.light,
+        colorSchemeSeed: Colors.teal,
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorSchemeSeed: Colors.teal,
+      ),
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      home: DriftHome(
+        isDark: isDark,
+        onToggleTheme: () {
+          setState(() {
+            isDark = !isDark;
+          });
+        },
+      ),
     );
   }
 }
