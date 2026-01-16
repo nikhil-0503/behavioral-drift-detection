@@ -169,44 +169,98 @@
 //   }
 // }
 import 'package:flutter/material.dart';
-import 'screens/drift_home.dart';
+
+import 'screens/login_page.dart';
+import 'screens/stats_page.dart';
+import 'screens/logs_page.dart';
+import 'screens/about_page.dart';
 
 void main() {
-  runApp(const DriftApp());
+  runApp(const TimeoApp());
 }
 
-class DriftApp extends StatefulWidget {
-  const DriftApp({super.key});
+class TimeoApp extends StatefulWidget {
+  const TimeoApp({super.key});
 
   @override
-  State<DriftApp> createState() => _DriftAppState();
+  State<TimeoApp> createState() => _TimeoAppState();
 }
 
-class _DriftAppState extends State<DriftApp> {
+class _TimeoAppState extends State<TimeoApp> {
+  int _index = 0;
   bool isDark = true;
+
+  final List<Widget> pages = const [
+    StatsPage(), // MAIN
+    LogsPage(),  // Logs / Summary
+    AboutPage(), // About
+  ];
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Behavioral Drift Detection',
-      theme: ThemeData(
-        brightness: Brightness.light,
-        colorSchemeSeed: Colors.teal,
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        colorSchemeSeed: Colors.teal,
-      ),
+
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-      home: DriftHome(
-        isDark: isDark,
-        onToggleTheme: () {
-          setState(() {
-            isDark = !isDark;
-          });
-        },
+
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.deepPurple,
+        brightness: Brightness.light,
       ),
+
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.deepPurple,
+        brightness: Brightness.dark,
+      ),
+
+      initialRoute: "/",
+
+      routes: {
+        "/": (context) => const LoginPage(),
+
+        "/home": (context) => Scaffold(
+              appBar: AppBar(
+                centerTitle: true,
+                title: const Text(
+                  "Timeo",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                actions: [
+                  Switch(
+                    value: isDark,
+                    onChanged: (v) => setState(() => isDark = v),
+                  ),
+                ],
+              ),
+
+              body: pages[_index],
+
+              bottomNavigationBar: BottomNavigationBar(
+                currentIndex: _index,
+                onTap: (i) => setState(() => _index = i),
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.analytics),
+                    label: "Stats",
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.list),
+                    label: "Logs",
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.info_outline),
+                    label: "About",
+                  ),
+                ],
+              ),
+            ),
+      },
     );
   }
 }
