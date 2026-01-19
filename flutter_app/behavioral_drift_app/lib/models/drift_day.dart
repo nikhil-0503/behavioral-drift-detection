@@ -10,7 +10,7 @@ class DriftDay {
   factory DriftDay.fromJson(Map<String, dynamic> json) {
     return DriftDay(
       date: json['date'] as String,
-      drift: json['drift'] as bool,
+      drift: json['final_drift_detected'] as bool,
     );
   }
 }
