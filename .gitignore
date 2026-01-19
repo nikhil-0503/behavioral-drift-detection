@@ -14,3 +14,4 @@ flutter_app/**/build/
 # OS
 .DS_Store
 Thumbs.db
+data_ml.zip

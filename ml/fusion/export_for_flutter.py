@@ -13,9 +13,10 @@ csv_path = os.path.join(
 
 output_path = os.path.join(
     BASE_DIR,
-    "data",
-    "processed",
-    "final_drift_output.json"
+    "flutter_app",
+    "behavioral_drift_app",
+    "assets",
+    "drift_results.json"
 )
 
 df = pd.read_csv(csv_path)
