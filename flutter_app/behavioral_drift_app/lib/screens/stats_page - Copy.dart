@@ -16,11 +16,8 @@ class StatsPage extends StatelessWidget {
         }
 
         final days = snapshot.data!;
-        if (days.isEmpty) {
-          return const Center(child: Text("No data available"));
-        }
 
-        // ===== COMPUTATIONS =====
+        // ===== REAL DATA COMPUTATION =====
         final driftDays = days.where((d) => d.drift).toList();
         final normalDays = days.where((d) => !d.drift).toList();
 
@@ -30,11 +27,9 @@ class StatsPage extends StatelessWidget {
         final lastDriftDate =
             driftDays.isNotEmpty ? driftDays.last.date : "None";
 
-        // Confidence-based line chart
-        final List<FlSpot> confidenceSpots = [];
+        final spots = <FlSpot>[];
         for (int i = 0; i < days.length; i++) {
-          final c = days[i].confidence.clamp(0.0, 1.0);
-          confidenceSpots.add(FlSpot(i.toDouble(), c));
+          spots.add(FlSpot(i.toDouble(), days[i].drift ? 1 : 0));
         }
 
         return ListView(
@@ -46,7 +41,7 @@ class StatsPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // ===== SUMMARY =====
+            // ===== SUMMARY CARDS =====
             Card(
               child: ListTile(
                 leading: Icon(Icons.warning_amber_rounded,
@@ -57,8 +52,8 @@ class StatsPage extends StatelessWidget {
             ),
             Card(
               child: ListTile(
-                leading: const Icon(Icons.timeline, color: Colors.deepPurple),
-                title: const Text("Last Drift Detected"),
+                leading: const Icon(Icons.timeline, color: Colors.purple),
+                title: const Text("Last Drift"),
                 subtitle: Text(lastDriftDate),
               ),
             ),
@@ -66,7 +61,7 @@ class StatsPage extends StatelessWidget {
               child: const ListTile(
                 leading: Icon(Icons.insights, color: Colors.green),
                 title: Text("System Status"),
-                subtitle: Text("Behavior monitoring active"),
+                subtitle: Text("Tracking live behavior"),
               ),
             ),
 
@@ -89,7 +84,7 @@ class StatsPage extends StatelessWidget {
                       height: 200,
                       child: PieChart(
                         PieChartData(
-                          centerSpaceRadius: 50,
+                          centerSpaceRadius: 55,
                           sectionsSpace: 3,
                           sections: [
                             PieChartSectionData(
@@ -115,7 +110,7 @@ class StatsPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // ===== CONFIDENCE TIMELINE =====
+            // ===== DRIFT TIMELINE =====
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -123,36 +118,27 @@ class StatsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "Drift Confidence Timeline",
+                      "Drift Timeline",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Higher values indicate stronger deviation from baseline",
-                      style: TextStyle(color: Colors.grey),
-                    ),
                     const SizedBox(height: 16),
                     SizedBox(
-                      height: 240,
+                      height: 220,
                       child: LineChart(
                         LineChartData(
-                          minY: 0,
-                          maxY: 1,
-                          gridData: FlGridData(show: true),
+                          gridData: FlGridData(show: false),
                           titlesData: FlTitlesData(show: false),
                           borderData: FlBorderData(show: false),
+                          minY: 0,
+                          maxY: 1,
                           lineBarsData: [
                             LineChartBarData(
-                              spots: confidenceSpots,
+                              spots: spots,
                               isCurved: true,
-                              barWidth: 3,
                               color: Colors.deepPurpleAccent,
-                              dotData: FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: Colors.deepPurpleAccent.withOpacity(0.2),
-                              ),
+                              barWidth: 3,
+                              dotData: FlDotData(show: true),
                             ),
                           ],
                         ),
