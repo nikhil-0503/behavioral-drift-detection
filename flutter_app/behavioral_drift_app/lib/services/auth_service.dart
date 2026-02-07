@@ -1,52 +1,76 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Wraps Firebase Auth + Google Sign-In.
 /// Exposes a stream of auth state and sign-in / sign-out methods.
-/// On web, skips Firebase for testing.
 class AuthService extends ChangeNotifier {
   late final FirebaseAuth _auth;
-  late final GoogleSignIn _googleSignIn;
-  User? _mockUser; // Mock user for web testing
+  GoogleSignIn? _googleSignIn;
+  bool _initialized = false;
+
+  // TODO: Replace with your actual Google OAuth Web Client ID from Google Cloud Console
+  static const String _googleWebClientId =
+      '132732288455-74h7eddn0433ar9o9pr9lk9mpnejrgl1.apps.googleusercontent.com';
 
   AuthService() {
-    if (!kIsWeb) {
+    _initializeAuth();
+  }
+
+  void _initializeAuth() {
+    try {
       _auth = FirebaseAuth.instance;
-      _googleSignIn = GoogleSignIn();
+      _initialized = true;
+    } catch (e) {
+      debugPrint('FirebaseAuth initialization error: $e');
+    }
+    
+    if (!kIsWeb) {
+      _googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
     } else {
-      // On web: create mock user for testing
-      _mockUser = null;
+      // Web: Use OAuth client ID
+      _googleSignIn = GoogleSignIn(
+        clientId: _googleWebClientId,
+        scopes: ['email', 'profile'],
+      );
     }
   }
 
   User? get currentUser {
-    if (kIsWeb) return _mockUser;
+    if (!_initialized) return null;
     return _auth.currentUser;
   }
 
   bool get isSignedIn {
-    if (kIsWeb) return true; // Always signed in on web for testing
+    if (!_initialized) return false;
     return _auth.currentUser != null;
   }
 
   Stream<User?> get authStateChanges {
-    if (kIsWeb) {
-      return Stream.value(_mockUser);
-    }
+    if (!_initialized) return Stream.value(null);
     return _auth.authStateChanges();
   }
 
   /// Sign in with Google. Returns the [User] or throws.
-  /// On web: mocks sign-in for testing.
   Future<User?> signInWithGoogle() async {
-    if (kIsWeb) {
-      notifyListeners();
-      return _mockUser; // Mock user on web
-    }
     try {
-      final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // user cancelled
+      if (!_initialized) {
+        throw Exception('Auth not initialized. Check Firebase setup.');
+      }
+
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        final userCredential = await _auth.signInWithPopup(provider);
+        notifyListeners();
+        return userCredential.user;
+      }
+
+      // Mobile: Use google_sign_in package
+      final googleUser = await _googleSignIn?.signIn();
+      if (googleUser == null) return null; // User cancelled
 
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -57,21 +81,30 @@ class AuthService extends ChangeNotifier {
       final userCredential = await _auth.signInWithCredential(credential);
       notifyListeners();
       return userCredential.user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase auth error (${e.code}): ${e.message}');
+      if (e.code == 'popup-blocked') {
+        throw Exception('Sign-in popup was blocked. Please allow popups.');
+      } else if (e.code == 'cancelled-popup-request') {
+        throw Exception('Sign-in was cancelled.');
+      }
+      rethrow;
+    } on PlatformException catch (e) {
+      debugPrint('Platform error (${e.code}): ${e.message}');
+      rethrow;
     } catch (e) {
-      debugPrint('Google sign-in error: $e');
+      debugPrint('Sign-in error: $e');
       rethrow;
     }
   }
 
   /// Sign out from both Firebase and Google.
-  /// On web: skips actual sign-out for testing.
   Future<void> signOut() async {
-    if (kIsWeb) {
-      _mockUser = null;
-      notifyListeners();
-      return;
+    if (!_initialized) return;
+    
+    if (!kIsWeb) {
+      await _googleSignIn?.signOut();
     }
-    await _googleSignIn.signOut();
     await _auth.signOut();
     notifyListeners();
   }

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
+import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/permission_service.dart';
 import 'services/monitoring_service.dart';
@@ -19,9 +20,12 @@ import 'screens/unsupported_platform_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Skip Firebase on web (no google-services.json)
-  if (!kIsWeb) {
-    await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
   }
   runApp(const TimeoApp());
 }
@@ -67,8 +71,6 @@ class _TimeoAppState extends State<TimeoApp> {
         routes: {
           '/': (context) => const _AuthGate(),
           '/login': (context) => const LoginPage(),
-          '/permissions': (context) =>
-              _platformGuard(const PermissionWizard()),
           '/home': (context) => _HomeShell(
                 onToggleTheme: (v) => setState(() => isDark = v),
                 isDark: isDark,
@@ -95,23 +97,15 @@ class _AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    // On web: skip login for faster testing
-    if (kIsWeb) {
-      return _HomeShell(
-        onToggleTheme: (_) {},
-        isDark: true,
-      );
-    }
+    // Always show login first, even on web
+    // Only show dashboard after successful authentication
     if (auth.isSignedIn) {
-      // Already signed in - go to permission check (or straight to home on non-Android)
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        return const PermissionWizard();
-      }
       return _HomeShell(
         onToggleTheme: (_) {},
         isDark: true,
       );
     }
+    // Always show login page when not signed in
     return const LoginPage();
   }
 }
@@ -141,8 +135,23 @@ class _HomeShellState extends State<_HomeShell> {
     if (!kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.read<MonitoringService>().init();
+        context.read<PermissionService>().checkAll();
       });
     }
+  }
+
+  void _showPermissionsDialog(BuildContext context) {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permissions not needed on this platform')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => _PermissionsDialog(),
+    );
   }
 
   @override
@@ -172,6 +181,11 @@ class _HomeShellState extends State<_HomeShell> {
               tooltip: 'Add App',
               onPressed: () => Navigator.pushNamed(context, '/add_app'),
             ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings & Permissions',
+            onPressed: () => _showPermissionsDialog(context),
+          ),
           Switch(
             value: widget.isDark,
             onChanged: widget.onToggleTheme,
@@ -219,6 +233,167 @@ class _HomeShellState extends State<_HomeShell> {
             selectedIcon: Icon(Icons.info),
             label: 'About',
           ),
+        ],
+      ),
+    );
+  }
+}
+/// Permissions dialog for Android to request/check permissions
+class _PermissionsDialog extends StatefulWidget {
+  @override
+  State<_PermissionsDialog> createState() => _PermissionsDialogState();
+}
+
+class _PermissionsDialogState extends State<_PermissionsDialog> {
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<PermissionService>().checkAll();
+  }
+
+  Future<void> _requestPermission(Future<void> Function() requestFn) async {
+    setState(() => _loading = true);
+    try {
+      await requestFn();
+      // Check again after requesting
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        await context.read<PermissionService>().checkAll();
+      }
+    } catch (e) {
+      debugPrint('Error requesting permission: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final perms = context.watch<PermissionService>();
+    const padding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+
+    return AlertDialog(
+      title: const Text('App Permissions'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Grant permissions to enable full functionality',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            // Usage Stats
+            _PermissionTile(
+              icon: Icons.bar_chart,
+              title: 'Usage Stats Access',
+              description: 'Monitor app usage patterns',
+              granted: perms.usageStatsGranted,
+              onRequest: _loading
+                  ? null
+                  : () => _requestPermission(
+                        context.read<PermissionService>().requestUsageStats,
+                      ),
+            ),
+            const SizedBox(height: 12),
+            // Accessibility
+            _PermissionTile(
+              icon: Icons.accessibility,
+              title: 'Accessibility Service',
+              description: 'Detect active app & block overlays',
+              granted: perms.accessibilityGranted,
+              onRequest: _loading
+                  ? null
+                  : () => _requestPermission(
+                        context.read<PermissionService>().requestAccessibility,
+                      ),
+            ),
+            const SizedBox(height: 12),
+            // Overlay
+            _PermissionTile(
+              icon: Icons.layers,
+              title: 'Overlay Permission',
+              description: 'Show blocking screen on limit',
+              granted: perms.overlayGranted,
+              onRequest: _loading
+                  ? null
+                  : () => _requestPermission(
+                        context.read<PermissionService>().requestOverlay,
+                      ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PermissionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool granted;
+  final VoidCallback? onRequest;
+
+  const _PermissionTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.granted,
+    this.onRequest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: granted ? Colors.green : Colors.grey.shade400,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Icon(icon, color: granted ? Colors.green : Colors.orange),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          if (granted)
+            const Icon(Icons.check_circle, color: Colors.green)
+          else
+            ElevatedButton(
+              onPressed: onRequest,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              child: const Text(
+                'Grant',
+                style: TextStyle(fontSize: 12, color: Colors.white),
+              ),
+            ),
         ],
       ),
     );

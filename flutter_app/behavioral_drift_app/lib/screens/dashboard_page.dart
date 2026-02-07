@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/monitoring_service.dart';
 import '../services/drift_detection_service.dart';
 import '../services/auth_service.dart';
+import '../services/permission_service.dart';
 import '../models/monitored_app.dart';
 import '../models/realtime_drift.dart';
 
@@ -53,6 +54,10 @@ class _DashboardPageState extends State<DashboardPage> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
+          // ── PERMISSIONS WARNING BANNER (Android only) ──
+          _buildPermissionsBanner(context),
+          const SizedBox(height: 16),
+
           // ── GREETING & ACCOUNTABILITY NUDGE ──
           _buildHeader(context, driftedCount),
           const SizedBox(height: 20),
@@ -197,6 +202,73 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPermissionsBanner(BuildContext context) {
+    final perms = context.watch<PermissionService>();
+    
+    // Only show on Android and if not all permissions granted
+    if (Theme.of(context).platform != TargetPlatform.android || perms.allGranted) {
+      return const SizedBox.shrink();
+    }
+
+    final missingPerms = <String>[];
+    if (!perms.usageStatsGranted) missingPerms.add('Usage Stats');
+    if (!perms.accessibilityGranted) missingPerms.add('Accessibility');
+    if (!perms.overlayGranted) missingPerms.add('Overlay');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        border: Border.all(color: Colors.orange),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_outlined, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${missingPerms.length} permission${missingPerms.length > 1 ? 's' : ''} needed',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            missingPerms.join(', '),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                final scaffold = ScaffoldMessenger.of(context);
+                scaffold.showSnackBar(
+                  const SnackBar(
+                    content: Text('Use the Settings button (⚙️) in the top-right to grant permissions'),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              child: const Text(
+                'Grant Permissions',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

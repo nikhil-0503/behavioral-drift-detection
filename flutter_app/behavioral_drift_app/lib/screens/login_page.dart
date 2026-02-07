@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -22,11 +23,20 @@ class _LoginPageState extends State<LoginPage> {
       final auth = context.read<AuthService>();
       final user = await auth.signInWithGoogle();
       if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, '/permissions');
+        // Go directly to home/dashboard
+        Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'Sign-in failed. Please try again.');
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('apiexception') || msg.contains('error 10')) {
+          setState(
+            () => _error =
+                'Google OAuth config missing. Add SHA keys in Firebase and download updated google-services.json.',
+          );
+        } else {
+          setState(() => _error = 'Sign-in failed. Please try again.');
+        }
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -53,8 +63,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-
-                // ===== DOODLE =====
                 SizedBox(
                   height: 260,
                   child: Center(
@@ -75,8 +83,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-
-                // ===== LOGIN CARD =====
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(28),
@@ -106,9 +112,7 @@ class _LoginPageState extends State<LoginPage> {
                           fontSize: 14,
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
                       const Text(
                         "Monitor your app usage, detect behavioral drift, "
                         "and stay accountable to your own standards.",
@@ -118,10 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                           height: 1.5,
                         ),
                       ),
-
                       const SizedBox(height: 32),
-
-                      // Google Sign-In Button
                       SizedBox(
                         width: double.infinity,
                         height: 52,
@@ -137,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
                                 )
                               : const Icon(Icons.login, size: 22),
                           label: Text(
-                            _loading ? "SIGNING IN…" : "SIGN IN WITH GOOGLE",
+                            _loading ? "SIGNING IN..." : "SIGN IN WITH GOOGLE",
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -153,21 +154,20 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       if (_error != null) ...[
                         const SizedBox(height: 12),
                         Text(
                           _error!,
                           style: const TextStyle(
-                              color: Colors.redAccent, fontSize: 13),
+                            color: Colors.redAccent,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
-
                       const SizedBox(height: 24),
-
                       const Center(
                         child: Text(
-                          "ML‑powered behavioral analytics",
+                          "ML-powered behavioral analytics",
                           style: TextStyle(
                             color: Colors.white38,
                             fontSize: 12,
