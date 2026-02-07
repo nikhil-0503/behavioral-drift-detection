@@ -1,7 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final auth = context.read<AuthService>();
+      final user = await auth.signInWithGoogle();
+      if (user != null && mounted) {
+        Navigator.pushReplacementNamed(context, '/permissions');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Sign-in failed. Please try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,76 +107,65 @@ class LoginPage extends StatelessWidget {
                         ),
                       ),
 
-                      const SizedBox(height: 32),
-
-                      TextField(
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: Colors.white10,
-                          hintText: "Email",
-                          hintStyle:
-                              const TextStyle(color: Colors.white60),
-                          prefixIcon:
-                              const Icon(Icons.email, color: Colors.white),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-
                       const SizedBox(height: 16),
 
-                      TextField(
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: Colors.white10,
-                          hintText: "Password",
-                          hintStyle:
-                              const TextStyle(color: Colors.white60),
-                          prefixIcon:
-                              const Icon(Icons.lock, color: Colors.white),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
+                      const Text(
+                        "Monitor your app usage, detect behavioral drift, "
+                        "and stay accountable to your own standards.",
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 13,
+                          height: 1.5,
                         ),
-                        style: const TextStyle(color: Colors.white),
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
+                      // Google Sign-In Button
                       SizedBox(
                         width: double.infinity,
                         height: 52,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(
-                                context, "/home");
-                          },
+                        child: ElevatedButton.icon(
+                          icon: _loading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.login, size: 22),
+                          label: Text(
+                            _loading ? "SIGNING IN…" : "SIGN IN WITH GOOGLE",
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          onPressed: _loading ? null : _signInWithGoogle,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.deepPurpleAccent,
+                            backgroundColor: Colors.deepPurpleAccent,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: const Text(
-                            "ENTER DASHBOARD",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                            ),
-                          ),
                         ),
                       ),
 
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: const TextStyle(
+                              color: Colors.redAccent, fontSize: 13),
+                        ),
+                      ],
+
                       const SizedBox(height: 24),
 
-                      Center(
+                      const Center(
                         child: Text(
                           "ML‑powered behavioral analytics",
                           style: TextStyle(
