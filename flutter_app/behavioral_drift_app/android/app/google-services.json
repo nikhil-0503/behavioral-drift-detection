@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "245668768285",
+    "project_id": "behavioraldrift",
+    "storage_bucket": "behavioraldrift.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:245668768285:android:63ba6e9f19fe85e745f4f4",
+        "android_client_info": {
+          "package_name": "com.example.behavioral_drift_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxr2JcAersonCQhC7w1VhoNAvbX-Cpc0Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

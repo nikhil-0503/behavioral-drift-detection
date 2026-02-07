@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Timeo</string>
+    <string name="accessibility_service_description">
+        Timeo uses this service to detect which app is in the foreground
+        and block apps that have exceeded their daily usage limit.
+        This helps you stay accountable to the boundaries you set.
+    </string>
+</resources>
