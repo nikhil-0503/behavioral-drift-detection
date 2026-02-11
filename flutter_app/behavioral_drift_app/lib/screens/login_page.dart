@@ -21,6 +21,10 @@ class _LoginPageState extends State<LoginPage> {
     });
     try {
       final auth = context.read<AuthService>();
+      if (!auth.isAvailable) {
+        setState(() => _error = 'Auth is unavailable. Continue without sign-in.');
+        return;
+      }
       final user = await auth.signInWithGoogle();
       if (user != null && mounted) {
         // Go directly to home/dashboard
@@ -45,6 +49,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -123,6 +128,22 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 32),
+                      if (!auth.isAvailable) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange),
+                          ),
+                          child: const Text(
+                            'Firebase auth not configured. You can continue without sign-in.',
+                            style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       SizedBox(
                         width: double.infinity,
                         height: 52,
@@ -154,6 +175,34 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
+                      if (!auth.isAvailable) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pushReplacementNamed(
+                              context,
+                              '/home',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                              side: const BorderSide(color: Colors.white30),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              'CONTINUE WITHOUT SIGN-IN',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (_error != null) ...[
                         const SizedBox(height: 12),
                         Text(

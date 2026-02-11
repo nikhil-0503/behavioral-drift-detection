@@ -97,6 +97,12 @@ class _AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    if (!auth.isAvailable) {
+      return _HomeShell(
+        onToggleTheme: (_) {},
+        isDark: true,
+      );
+    }
     // Always show login first, even on web
     // Only show dashboard after successful authentication
     if (auth.isSignedIn) {

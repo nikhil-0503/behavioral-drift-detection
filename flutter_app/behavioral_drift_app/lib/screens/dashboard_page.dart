@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
@@ -19,19 +20,48 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   bool _loading = true;
+  bool _isRefreshing = false;
+  Timer? _refreshTimer;
+  DateTime? _lastUpdated;
+
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _startAutoRefresh();
   }
 
-  Future<void> _loadData() async {
-    final monitor = context.read<MonitoringService>();
-    final driftSvc = context.read<DriftDetectionService>();
-    await monitor.refreshUsage();
-    await driftSvc.computeAll(monitor.apps);
-    if (mounted) setState(() => _loading = false);
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadData({bool showSpinner = false}) async {
+    if (_isRefreshing) return;
+    if (showSpinner && mounted) {
+      setState(() => _loading = true);
+    }
+    _isRefreshing = true;
+    try {
+      final monitor = context.read<MonitoringService>();
+      final driftSvc = context.read<DriftDetectionService>();
+      await monitor.refreshUsage();
+      await driftSvc.computeAll(monitor.apps);
+      _lastUpdated = DateTime.now();
+    } finally {
+      _isRefreshing = false;
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+      _loadData();
+    });
   }
 
   @override
@@ -50,7 +80,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final blockedCount = apps.where((a) => a.isBlocked).length;
 
     return RefreshIndicator(
-      onRefresh: _loadData,
+      onRefresh: () => _loadData(showSpinner: false),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -87,6 +117,13 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ],
           ),
+          if (_lastUpdated != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Last updated: ${_lastUpdated!.toLocal().toIso8601String().substring(11, 19)}',
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // ── DRIFT SCORE CHART ──

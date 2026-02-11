@@ -24,6 +24,7 @@ class AuthService extends ChangeNotifier {
       _initialized = true;
     } catch (e) {
       debugPrint('FirebaseAuth initialization error: $e');
+      _initialized = false;
     }
     
     if (!kIsWeb) {
@@ -48,6 +49,8 @@ class AuthService extends ChangeNotifier {
     if (!_initialized) return false;
     return _auth.currentUser != null;
   }
+
+  bool get isAvailable => _initialized;
 
   Stream<User?> get authStateChanges {
     if (!_initialized) return Stream.value(null);

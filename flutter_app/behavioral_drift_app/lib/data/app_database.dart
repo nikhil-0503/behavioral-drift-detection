@@ -226,4 +226,16 @@ class AppDatabase {
         where: 'date = ?', whereArgs: [date], orderBy: 'drift_score DESC');
     return rows.map((r) => RealtimeDrift.fromMap(r)).toList();
   }
+
+  /// Aggregate per-day drift summaries for Stats/Logs on Android.
+  Future<List<Map<String, dynamic>>> getDriftDaySummaries({int? limit}) async {
+    if (kIsWeb) return [];
+    final db = await database;
+    final baseQuery =
+        'SELECT date, AVG(drift_score) as avg_score, MAX(is_drifted) as is_drifted '
+        'FROM realtime_drift GROUP BY date ORDER BY date DESC';
+    final query = limit == null ? baseQuery : '$baseQuery LIMIT $limit';
+    final rows = await db.rawQuery(query);
+    return rows.reversed.toList();
+  }
 }
