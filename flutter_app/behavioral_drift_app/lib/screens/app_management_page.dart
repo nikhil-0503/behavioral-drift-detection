@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../services/monitoring_service.dart';
+import '../models/limit_rules.dart';
 
 /// Screen to add apps to the monitoring list.
 /// Apps can only be ADDED — never removed (append-only).
@@ -131,7 +132,8 @@ class _AppManagementPageState extends State<AppManagementPage> {
 
   Future<void> _showAddDialog(
       BuildContext context, String packageName, String appName) async {
-    final limitController = TextEditingController(text: '30');
+    final limitController = TextEditingController(
+        text: '${LimitRules.defaultLimitMinutes}');
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -144,16 +146,17 @@ class _AppManagementPageState extends State<AppManagementPage> {
             const Text(
               '⚠ Once added, this app cannot be removed from monitoring. '
               'You can only reduce the time limit later, never increase it.\n\n'
-              'Set your daily limit wisely.',
+              'Maximum allowed limit: 30 minutes.',
               style: TextStyle(fontSize: 13, color: Colors.orangeAccent),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: limitController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Daily limit (minutes)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: 'Daily limit (max ${LimitRules.maxLimitMinutes} min)',
+                border: const OutlineInputBorder(),
+                helperText: 'Enter 1–${LimitRules.maxLimitMinutes} minutes',
               ),
             ),
           ],
@@ -174,17 +177,19 @@ class _AppManagementPageState extends State<AppManagementPage> {
     );
 
     if (confirmed == true && mounted) {
-      final limit = int.tryParse(limitController.text) ?? 30;
+      final raw = int.tryParse(limitController.text) ??
+          LimitRules.defaultLimitMinutes;
+      final limit = LimitRules.clampInitialLimit(raw);
       final monitor = context.read<MonitoringService>();
       final ok = await monitor.addApp(
         packageName: packageName,
         appName: appName,
-        dailyLimitMinutes: limit.clamp(1, 1440),
+        dailyLimitMinutes: limit,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(ok
-              ? '$appName is now being monitored.'
+              ? '$appName is now being monitored ($limit min limit).'
               : '$appName is already monitored.'),
         ));
       }

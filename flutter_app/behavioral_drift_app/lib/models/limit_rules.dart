@@ -1,8 +1,21 @@
 /// Business-rule helper for app limit enforcement.
 /// Key invariants:
-///   - limit can only be REDUCED, never increased
+///   - absolute max limit = 30 minutes (default)
+///   - limit can only be REDUCED, never increased past the last-set value
+///   - user may reset to the DEFAULT (30 min), but never beyond it
 ///   - once an app is added it cannot be removed
 class LimitRules {
+  /// The absolute maximum timer a user can ever set.
+  static const int maxLimitMinutes = 30;
+
+  /// The default timer value for new apps.
+  static const int defaultLimitMinutes = 30;
+
+  /// Clamp a proposed initial limit to the allowed range [1, maxLimitMinutes].
+  static int clampInitialLimit(int proposedMinutes) {
+    return proposedMinutes.clamp(1, maxLimitMinutes);
+  }
+
   /// Validates whether a proposed new limit is legal given the current limit.
   /// Returns `true` only when [proposedMinutes] < [currentMinutes].
   static bool canChangeLimit({
@@ -10,7 +23,14 @@ class LimitRules {
     required int proposedMinutes,
   }) {
     if (proposedMinutes <= 0) return false; // must be positive
+    if (proposedMinutes > maxLimitMinutes) return false; // absolute cap
     return proposedMinutes < currentMinutes;
+  }
+
+  /// Whether the user can reset the limit to the default (30 min).
+  /// Only allowed if the current limit is already below the default.
+  static bool canResetToDefault(int currentMinutes) {
+    return currentMinutes < defaultLimitMinutes;
   }
 
   /// Returns the valid new limit, or `null` if the change is rejected.

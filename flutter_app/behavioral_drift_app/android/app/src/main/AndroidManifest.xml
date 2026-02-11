@@ -23,6 +23,10 @@
     <!-- Wake lock for workmanager -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Exact alarm for midnight reset (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <!-- POST_NOTIFICATIONS for Android 13+ foreground service notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -87,6 +91,12 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Midnight Reset Receiver for daily timer reset -->
+        <receiver
+            android:name=".MidnightResetReceiver"
+            android:exported="false"
+            android:enabled="true" />
 
         <!-- Flutter embedding meta-data -->
         <meta-data

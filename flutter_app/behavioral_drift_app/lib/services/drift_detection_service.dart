@@ -14,6 +14,7 @@ class DriftDetectionService extends ChangeNotifier {
   final AppDatabase _db = AppDatabase();
   static const double _driftThreshold = 0.5;
   static const int _baselineDays = 14;
+  static const int _minDaysForRealBaseline = 3;
 
   List<RealtimeDrift> _latestDrifts = [];
   List<RealtimeDrift> get latestDrifts => List.unmodifiable(_latestDrifts);
@@ -36,38 +37,50 @@ class DriftDetectionService extends ChangeNotifier {
     final history = await _db.dailyTotals(app.packageName, _baselineDays);
     history.remove(_today); // exclude today from baseline
 
-    if (history.isEmpty) {
-      // Not enough data yet – report zero drift
-      return RealtimeDrift(
-        packageName: app.packageName,
-        date: _today,
-        baselineAvgMinutes: 0,
-        todayMinutes: app.todayUsageSeconds / 60.0,
-        driftScore: 0,
-        isDrifted: false,
-        explanation: 'Collecting baseline data…',
-      );
-    }
-
-    final avgSeconds =
-        history.values.reduce((a, b) => a + b) / history.length;
-    final baselineMin = avgSeconds / 60.0;
     final todayMin = app.todayUsageSeconds / 60.0;
+    double baselineMin;
+    String explanation;
+    bool usedDummy = false;
+
+    if (history.length < _minDaysForRealBaseline) {
+      // Not enough real data — generate dummy baseline for meaningful display
+      usedDummy = true;
+      final dummyBaseline = _generateDummyBaseline(app.dailyLimitMinutes);
+      baselineMin = dummyBaseline;
+    } else {
+      final avgSeconds =
+          history.values.reduce((a, b) => a + b) / history.length;
+      baselineMin = avgSeconds / 60.0;
+    }
 
     final score = (todayMin - baselineMin).abs() / max(baselineMin, 1.0);
     final isDrifted = score > _driftThreshold;
 
-    String explanation;
-    if (!isDrifted) {
-      explanation = 'Your usage is within normal range.';
-    } else if (todayMin > baselineMin) {
-      explanation =
-          'You\'ve used ${app.appName} ${(score * 100).toStringAsFixed(0)}% more '
-          'than your ${_baselineDays}-day average. This is a significant deviation.';
+    if (usedDummy) {
+      if (!isDrifted) {
+        explanation =
+            'Simulated baseline (${history.length} days collected). '
+            'Usage looks normal so far.';
+      } else if (todayMin > baselineMin) {
+        explanation =
+            'Simulated: ${(score * 100).toStringAsFixed(0)}% above estimated baseline. '
+            'Collecting more data for accurate drift.';
+      } else {
+        explanation =
+            'Simulated: ${(score * 100).toStringAsFixed(0)}% below estimated baseline.';
+      }
     } else {
-      explanation =
-          'Usage is ${(score * 100).toStringAsFixed(0)}% below your baseline – '
-          'unusual drop detected.';
+      if (!isDrifted) {
+        explanation = 'Your usage is within normal range.';
+      } else if (todayMin > baselineMin) {
+        explanation =
+            'You\'ve used ${app.appName} ${(score * 100).toStringAsFixed(0)}% more '
+            'than your ${_baselineDays}-day average. This is a significant deviation.';
+      } else {
+        explanation =
+            'Usage is ${(score * 100).toStringAsFixed(0)}% below your baseline – '
+            'unusual drop detected.';
+      }
     }
 
     final drift = RealtimeDrift(
@@ -83,6 +96,16 @@ class DriftDetectionService extends ChangeNotifier {
     // Persist
     await _db.insertDrift(drift);
     return drift;
+  }
+
+  /// Generate a realistic dummy baseline in minutes based on the app's limit.
+  /// Used when < _minDaysForRealBaseline days of data are available.
+  double _generateDummyBaseline(int dailyLimitMinutes) {
+    // Assume user typically uses ~60% of their set limit
+    final rng = Random();
+    final base = dailyLimitMinutes * 0.6;
+    final jitter = (rng.nextDouble() - 0.5) * dailyLimitMinutes * 0.1;
+    return (base + jitter).clamp(1.0, dailyLimitMinutes.toDouble());
   }
 
   /// Fetch persisted drift history for one app.

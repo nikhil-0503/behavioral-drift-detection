@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../models/monitored_app.dart';
 import '../models/realtime_drift.dart';
+import '../models/limit_rules.dart';
 import '../services/monitoring_service.dart';
 import '../services/drift_detection_service.dart';
 
@@ -107,9 +108,10 @@ class _AppDetailPageState extends State<AppDetailPage> {
                             style: TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16)),
                         const SizedBox(height: 4),
-                        const Text(
-                          'You can only reduce your limit — never increase it.',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        Text(
+                          'You can only reduce your limit (max ${LimitRules.maxLimitMinutes} min). '
+                          'Use "Reset to Default" to restore to ${LimitRules.defaultLimitMinutes} min.',
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
                         ),
                         const SizedBox(height: 12),
                         _LimitSlider(app: app),
@@ -260,29 +262,31 @@ class _LimitSliderState extends State<_LimitSlider> {
 
   @override
   Widget build(BuildContext context) {
+    final currentLimit = widget.app.dailyLimitMinutes;
+    final canReset = LimitRules.canResetToDefault(currentLimit);
+
     return Column(
       children: [
         Slider(
           value: _value,
           min: 1,
-          max: widget.app.dailyLimitMinutes.toDouble(),
-          divisions: widget.app.dailyLimitMinutes - 1 > 0
-              ? widget.app.dailyLimitMinutes - 1
-              : 1,
+          max: currentLimit.toDouble(),
+          divisions: currentLimit - 1 > 0 ? currentLimit - 1 : 1,
           label: '${_value.round()} min',
           onChanged: (v) => setState(() => _value = v),
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('1 min', style: TextStyle(fontSize: 11, color: Colors.grey)),
-            Text('${widget.app.dailyLimitMinutes} min (current)',
+            const Text('1 min',
+                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            Text('$currentLimit min (current)',
                 style:
                     const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
         const SizedBox(height: 8),
-        if (_value.round() < widget.app.dailyLimitMinutes)
+        if (_value.round() < currentLimit)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -304,6 +308,30 @@ class _LimitSliderState extends State<_LimitSlider> {
               child: Text('Reduce to ${_value.round()} min'),
             ),
           ),
+        if (canReset) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final monitor = context.read<MonitoringService>();
+                final ok =
+                    await monitor.resetLimitToDefault(widget.app.packageName);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? 'Limit reset to ${LimitRules.defaultLimitMinutes} min.'
+                        : 'Could not reset limit.'),
+                  ));
+                  if (ok) Navigator.pop(context);
+                }
+              },
+              icon: const Icon(Icons.restore),
+              label: Text(
+                  'Reset to Default (${LimitRules.defaultLimitMinutes} min)'),
+            ),
+          ),
+        ],
       ],
     );
   }

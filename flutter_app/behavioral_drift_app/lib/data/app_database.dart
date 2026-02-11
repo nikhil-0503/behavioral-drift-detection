@@ -131,6 +131,26 @@ class AppDatabase {
     return true;
   }
 
+  /// Reset limit to default (30 min). Only allowed if current < defaultLimit.
+  Future<bool> resetLimitToDefault(
+      String packageName, int defaultLimit) async {
+    if (kIsWeb) return false;
+    final db = await database;
+    final rows = await db.query('monitored_apps',
+        where: 'package_name = ?', whereArgs: [packageName]);
+    if (rows.isEmpty) return false;
+    final current = MonitoredApp.fromMap(rows.first);
+    // Only allow reset upward to default, never beyond
+    if (current.dailyLimitMinutes >= defaultLimit) return false;
+    await db.update(
+      'monitored_apps',
+      {'daily_limit_minutes': defaultLimit},
+      where: 'package_name = ?',
+      whereArgs: [packageName],
+    );
+    return true;
+  }
+
   /// Mark app as blocked/unblocked.
   Future<void> setBlocked(String packageName, bool blocked) async {
     if (kIsWeb) return; // Mock: no-op on web
@@ -154,6 +174,36 @@ class AppDatabase {
   }
 
   // ──────────────── USAGE SESSIONS ────────────────
+
+  /// Insert or update a daily usage session total for a package+date.
+  /// This is the primary way live usage data populates the sessions table
+  /// so that drift baseline computation works.
+  Future<void> upsertDailySession(
+      String packageName, String date, int totalSeconds) async {
+    if (kIsWeb) return;
+    final db = await database;
+    // Check if a session for this date already exists
+    final existing = await db.query('usage_sessions',
+        where: 'package_name = ? AND date = ?',
+        whereArgs: [packageName, date]);
+    if (existing.isNotEmpty) {
+      await db.update(
+        'usage_sessions',
+        {'duration_seconds': totalSeconds},
+        where: 'package_name = ? AND date = ?',
+        whereArgs: [packageName, date],
+      );
+    } else {
+      final now = DateTime.now().toIso8601String();
+      await db.insert('usage_sessions', {
+        'package_name': packageName,
+        'start_time': now,
+        'end_time': now,
+        'duration_seconds': totalSeconds,
+        'date': date,
+      });
+    }
+  }
 
   Future<int> insertSession(AppUsageSession session) async {
     if (kIsWeb) return 0; // Mock: return success on web

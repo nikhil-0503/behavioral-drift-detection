@@ -139,9 +139,12 @@ class _HomeShellState extends State<_HomeShell> {
     super.initState();
     // Initialise monitoring service on first load (Android only)
     if (!kIsWeb) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<MonitoringService>().init();
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final monitor = context.read<MonitoringService>();
+        await monitor.init();
         context.read<PermissionService>().checkAll();
+        // Auto-start foreground service for real-time blocking
+        await monitor.startForegroundService();
       });
     }
   }

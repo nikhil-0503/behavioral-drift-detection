@@ -97,6 +97,34 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(true)
                     }
+                    "midnightReset" -> {
+                        // Clear all blocked apps from SharedPreferences
+                        val blockedPrefs = getSharedPreferences("blocked_apps", Context.MODE_PRIVATE)
+                        blockedPrefs.edit().clear().apply()
+                        result.success(true)
+                    }
+                    "getUsageHistory" -> {
+                        val pkg = call.argument<String>("packageName")
+                        val days = call.argument<Int>("days") ?: 14
+                        if (pkg == null) {
+                            result.error("INVALID", "packageName required", null)
+                            return@setMethodCallHandler
+                        }
+                        val history = getUsageHistoryDays(pkg, days)
+                        result.success(history)
+                    }
+                    "getBulkUsageToday" -> {
+                        val packages = call.argument<List<String>>("packages")
+                        if (packages == null) {
+                            result.error("INVALID", "packages list required", null)
+                            return@setMethodCallHandler
+                        }
+                        val usageMap = HashMap<String, Int>()
+                        for (pkg in packages) {
+                            usageMap[pkg] = getUsageTodaySeconds(pkg)
+                        }
+                        result.success(usageMap)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -124,7 +152,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isAccessibilityEnabled(): Boolean {
-        val service = "$packageName/.AppBlockerAccessibilityService"
         val enabledServices = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -132,7 +159,15 @@ class MainActivity : FlutterActivity() {
         val colonSplitter = TextUtils.SimpleStringSplitter(':')
         colonSplitter.setString(enabledServices)
         while (colonSplitter.hasNext()) {
-            if (colonSplitter.next().equals(service, ignoreCase = true)) {
+            val svc = colonSplitter.next()
+            // Match common formats Android exposes for accessibility services:
+            //  - com.example/.Service
+            //  - com.example/com.example.Service
+            // Also accept any entry that ends with the service class name.
+            if (svc.equals("$packageName/.AppBlockerAccessibilityService", ignoreCase = true)
+                || svc.equals("$packageName/$packageName.AppBlockerAccessibilityService", ignoreCase = true)
+                || svc.endsWith(".AppBlockerAccessibilityService", ignoreCase = true)
+            ) {
                 return true
             }
         }
@@ -167,6 +202,43 @@ class MainActivity : FlutterActivity() {
             }
         }
         return (totalMs / 1000).toInt()
+    }
+
+    /**
+     * Returns a map of "yyyy-MM-dd" -> totalSeconds for the given package
+     * over the last [days] days using UsageStatsManager.
+     */
+    private fun getUsageHistoryDays(packageName: String, days: Int): List<Map<String, Any>> {
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val result = mutableListOf<Map<String, Any>>()
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+
+        for (d in days downTo 0) {
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.DAY_OF_YEAR, -d)
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val dayStart = cal.timeInMillis
+
+            cal.set(Calendar.HOUR_OF_DAY, 23)
+            cal.set(Calendar.MINUTE, 59)
+            cal.set(Calendar.SECOND, 59)
+            cal.set(Calendar.MILLISECOND, 999)
+            val dayEnd = cal.timeInMillis
+
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, dayStart, dayEnd)
+            var totalMs: Long = 0
+            for (s in stats) {
+                if (s.packageName == packageName) {
+                    totalMs += s.totalTimeInForeground
+                }
+            }
+            val dateStr = sdf.format(java.util.Date(dayStart))
+            result.add(mapOf("date" to dateStr, "seconds" to (totalMs / 1000).toInt()))
+        }
+        return result
     }
 
     private fun getInstalledAppsList(): List<Map<String, String>> {

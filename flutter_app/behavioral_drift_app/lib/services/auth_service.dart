@@ -10,7 +10,7 @@ class AuthService extends ChangeNotifier {
   GoogleSignIn? _googleSignIn;
   bool _initialized = false;
 
-  // TODO: Replace with your actual Google OAuth Web Client ID from Google Cloud Console
+  // Web-only OAuth client ID (Android uses google-services.json automatically)
   static const String _googleWebClientId =
       '132732288455-74h7eddn0433ar9o9pr9lk9mpnejrgl1.apps.googleusercontent.com';
 
@@ -26,15 +26,15 @@ class AuthService extends ChangeNotifier {
       debugPrint('FirebaseAuth initialization error: $e');
       _initialized = false;
     }
-    
-    if (!kIsWeb) {
+
+    if (kIsWeb) {
       _googleSignIn = GoogleSignIn(
+        clientId: _googleWebClientId,
         scopes: ['email', 'profile'],
       );
     } else {
-      // Web: Use OAuth client ID
+      // Android: do NOT pass clientId – it is resolved from google-services.json
       _googleSignIn = GoogleSignIn(
-        clientId: _googleWebClientId,
         scopes: ['email', 'profile'],
       );
     }
@@ -94,6 +94,26 @@ class AuthService extends ChangeNotifier {
       rethrow;
     } on PlatformException catch (e) {
       debugPrint('Platform error (${e.code}): ${e.message}');
+      if (e.code == 'sign_in_failed') {
+        final msg = e.message ?? '';
+        if (msg.contains('ApiException: 10') || msg.contains('DEVELOPER_ERROR')) {
+          throw Exception(
+            'Google Sign-In failed (error 10 / DEVELOPER_ERROR). '
+            'Ensure SHA-1 fingerprint is registered in Firebase Console '
+            'and google-services.json is up to date.',
+          );
+        }
+        if (msg.contains('ApiException: 12500')) {
+          throw Exception(
+            'Google Sign-In failed (12500). Update Google Play Services on your device.',
+          );
+        }
+        if (msg.contains('ApiException: 7')) {
+          throw Exception(
+            'Google Sign-In failed (network error). Check your internet connection.',
+          );
+        }
+      }
       rethrow;
     } catch (e) {
       debugPrint('Sign-in error: $e');
@@ -104,7 +124,7 @@ class AuthService extends ChangeNotifier {
   /// Sign out from both Firebase and Google.
   Future<void> signOut() async {
     if (!_initialized) return;
-    
+
     if (!kIsWeb) {
       await _googleSignIn?.signOut();
     }
