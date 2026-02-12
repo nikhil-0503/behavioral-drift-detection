@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "245668768285-qinmt3acpj475kd8f9hncc3uc9br9ndj.apps.googleusercontent.com",
+          "client_id": "245668768285-5nsrd20qpgbooluc0u9jgpch12fblft9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.behavioral_drift_app",
-            "certificate_hash": "12f515c99773d37f1bb9b7441aada33a96010ccd"
+            "certificate_hash": "b1d9fc0fd5878e61251dcff35a5081eadd5bf42f"
           }
         },
         {
