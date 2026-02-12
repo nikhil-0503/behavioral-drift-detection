@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/app_database.dart';
 import '../models/monitored_app.dart';
 import '../models/limit_rules.dart';
@@ -9,6 +10,7 @@ import '../models/limit_rules.dart';
 /// and enforces limits (warning + blocking).
 class MonitoringService extends ChangeNotifier {
   static const _channel = MethodChannel('com.behavioral_drift/monitoring');
+  static const String _lastResetKey = 'last_reset_date';
 
   final AppDatabase _db = AppDatabase();
   List<MonitoredApp> _apps = [];
@@ -18,6 +20,7 @@ class MonitoringService extends ChangeNotifier {
   final List<MonitoredApp> _webApps = [];
 
   bool _historyLoaded = false;
+  String? _lastResetDate;
 
   /// Initialise: load apps from DB and refresh usage from native.
   Future<void> init() async {
@@ -25,6 +28,7 @@ class MonitoringService extends ChangeNotifier {
       _apps = List.from(_webApps);
     } else {
       _apps = await _db.getMonitoredApps();
+      await _ensureDailyReset();
       await refreshUsage();
       // Load historical usage data once on startup
       if (!_historyLoaded) {
@@ -144,6 +148,7 @@ class MonitoringService extends ChangeNotifier {
   /// Pull latest usage data from native Android and update DB.
   Future<void> refreshUsage() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
+    await _ensureDailyReset();
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     for (final app in _apps) {
       try {
@@ -229,7 +234,26 @@ class MonitoringService extends ChangeNotifier {
         await _channel.invokeMethod('midnightReset');
       } catch (_) {}
     }
+    await _persistLastReset(DateFormat('yyyy-MM-dd').format(DateTime.now()));
     notifyListeners();
+  }
+
+  Future<void> _ensureDailyReset() async {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (_lastResetDate == null) {
+      final prefs = await SharedPreferences.getInstance();
+      _lastResetDate = prefs.getString(_lastResetKey) ?? today;
+      if (_lastResetDate == today) return;
+    }
+    if (_lastResetDate == today) return;
+    await resetDaily();
+    _lastResetDate = today;
+  }
+
+  Future<void> _persistLastReset(String date) async {
+    _lastResetDate = date;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastResetKey, date);
   }
 
   /// Start the foreground service for real-time monitoring.

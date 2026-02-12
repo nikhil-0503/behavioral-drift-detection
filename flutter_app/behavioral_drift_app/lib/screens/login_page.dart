@@ -47,6 +47,14 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _continueAsGuest() async {
+    final auth = context.read<AuthService>();
+    await auth.enableGuestMode();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
@@ -177,32 +185,30 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       if (!auth.isAvailable) ...[
                         const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 46,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pushReplacementNamed(
-                              context,
-                              '/home',
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: _continueAsGuest,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Colors.white30),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white70,
-                              side: const BorderSide(color: Colors.white30),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'CONTINUE WITHOUT SIGN-IN',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.6,
-                              ),
+                          ),
+                          child: const Text(
+                            'CONTINUE WITHOUT SIGN-IN',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.6,
                             ),
                           ),
                         ),
-                      ],
+                      ),
                       if (_error != null) ...[
                         const SizedBox(height: 12),
                         Text(

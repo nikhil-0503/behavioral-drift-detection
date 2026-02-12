@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps Firebase Auth + Google Sign-In.
 /// Exposes a stream of auth state and sign-in / sign-out methods.
@@ -9,6 +10,9 @@ class AuthService extends ChangeNotifier {
   late final FirebaseAuth _auth;
   GoogleSignIn? _googleSignIn;
   bool _initialized = false;
+  bool _guestMode = false;
+
+  static const String _guestModeKey = 'guest_mode_enabled';
 
   // Web-only OAuth client ID (Android uses google-services.json automatically)
   static const String _googleWebClientId =
@@ -16,6 +20,7 @@ class AuthService extends ChangeNotifier {
 
   AuthService() {
     _initializeAuth();
+    _loadGuestMode();
   }
 
   void _initializeAuth() {
@@ -52,6 +57,8 @@ class AuthService extends ChangeNotifier {
 
   bool get isAvailable => _initialized;
 
+  bool get isGuestMode => _guestMode;
+
   Stream<User?> get authStateChanges {
     if (!_initialized) return Stream.value(null);
     return _auth.authStateChanges();
@@ -67,6 +74,7 @@ class AuthService extends ChangeNotifier {
       if (kIsWeb) {
         final provider = GoogleAuthProvider();
         final userCredential = await _auth.signInWithPopup(provider);
+        await _persistGuestMode(false);
         notifyListeners();
         return userCredential.user;
       }
@@ -82,6 +90,7 @@ class AuthService extends ChangeNotifier {
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
+      await _persistGuestMode(false);
       notifyListeners();
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
@@ -129,6 +138,34 @@ class AuthService extends ChangeNotifier {
       await _googleSignIn?.signOut();
     }
     await _auth.signOut();
+    await _persistGuestMode(false);
     notifyListeners();
+  }
+
+  Future<void> enableGuestMode() async {
+    await _persistGuestMode(true);
+    notifyListeners();
+  }
+
+  Future<void> disableGuestMode() async {
+    await _persistGuestMode(false);
+    notifyListeners();
+  }
+
+  Future<void> _loadGuestMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _guestMode = prefs.getBool(_guestModeKey) ?? false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Guest mode load error: $e');
+    }
+  }
+
+  Future<void> _persistGuestMode(bool enabled) async {
+    if (_guestMode == enabled) return;
+    _guestMode = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_guestModeKey, enabled);
   }
 }

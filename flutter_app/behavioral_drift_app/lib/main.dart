@@ -97,7 +97,7 @@ class _AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    if (!auth.isAvailable) {
+    if (!auth.isAvailable || auth.isGuestMode) {
       return _HomeShell(
         onToggleTheme: (_) {},
         isDark: true,

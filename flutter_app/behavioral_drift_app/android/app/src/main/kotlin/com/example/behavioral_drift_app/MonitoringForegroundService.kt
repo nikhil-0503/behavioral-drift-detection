@@ -12,7 +12,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.Timer
 import java.util.TimerTask
 
@@ -48,14 +51,14 @@ class MonitoringForegroundService : Service() {
             scheduleMidnightReset() // reschedule for next midnight
         }
 
-        // Poll every 15 seconds for real-time enforcement
+        // Poll every 5 seconds for tighter enforcement
         timer?.cancel()
         timer = Timer()
         timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 checkUsageLimits()
             }
-        }, 0, 15_000)
+        }, 0, 5_000)
 
         return START_STICKY // restart if killed
     }
@@ -70,6 +73,7 @@ class MonitoringForegroundService : Service() {
     // ──────────── CORE ENFORCEMENT ────────────
 
     private fun checkUsageLimits() {
+        ensureDailyResetIfNeeded()
         val trackedPrefs = getSharedPreferences("tracked_apps", Context.MODE_PRIVATE)
         val blockedPrefs = getSharedPreferences("blocked_apps", Context.MODE_PRIVATE)
         val editor = blockedPrefs.edit()
@@ -192,10 +196,30 @@ class MonitoringForegroundService : Service() {
         // Clear all blocked apps
         val blockedPrefs = getSharedPreferences("blocked_apps", Context.MODE_PRIVATE)
         blockedPrefs.edit().clear().apply()
-
+        saveLastResetDate()
         // Reset tracked app limits stay the same — only usage resets
         // The Flutter side will reset DB counters when it next starts
         Log.d(TAG, "Midnight reset complete: all blocks cleared")
+    }
+
+    private fun ensureDailyResetIfNeeded() {
+        val prefs = getSharedPreferences("monitoring_prefs", Context.MODE_PRIVATE)
+        val lastReset = prefs.getString("last_reset_date", null)
+        val today = todayKey()
+        if (lastReset != null && lastReset == today) return
+
+        val blockedPrefs = getSharedPreferences("blocked_apps", Context.MODE_PRIVATE)
+        blockedPrefs.edit().clear().apply()
+        saveLastResetDate()
+    }
+
+    private fun saveLastResetDate() {
+        val prefs = getSharedPreferences("monitoring_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("last_reset_date", todayKey()).apply()
+    }
+
+    private fun todayKey(): String {
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     }
 
     // ──────────── NOTIFICATION ────────────

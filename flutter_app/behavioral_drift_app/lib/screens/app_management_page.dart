@@ -179,6 +179,37 @@ class _AppManagementPageState extends State<AppManagementPage> {
     if (confirmed == true && mounted) {
       final raw = int.tryParse(limitController.text) ??
           LimitRules.defaultLimitMinutes;
+      if (raw <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Daily limit must be at least 1 minute.'),
+          ));
+        }
+        return;
+      }
+      if (raw > LimitRules.maxLimitMinutes) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: Center(
+                heightFactor: 1,
+                child: Text(
+                  'Daily limit cannot exceed ${LimitRules.maxLimitMinutes} minutes. '
+                  'It will be capped to ${LimitRules.maxLimitMinutes} minutes.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
       final limit = LimitRules.clampInitialLimit(raw);
       final monitor = context.read<MonitoringService>();
       final ok = await monitor.addApp(
