@@ -121,6 +121,48 @@ class MonitoringService extends ChangeNotifier {
     return ok;
   }
 
+  /// Update limit to any value in [1, 30]. Returns true on success.
+  Future<bool> updateLimit(String packageName, int newLimit) async {
+    if (newLimit <= 0 || newLimit > LimitRules.maxLimitMinutes) return false;
+    final ok = await _db.updateLimit(packageName, newLimit);
+    if (ok) {
+      _apps = await _db.getMonitoredApps();
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          await _channel.invokeMethod('addTrackedApp', {
+            'packageName': packageName,
+            'limitMinutes': newLimit,
+          });
+        } catch (_) {}
+      }
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Refresh app display names from PackageManager.
+  Future<void> refreshAppNames() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      // Bulk refresh: get installed apps list and match names
+      final installed = await getInstalledApps();
+      final nameMap = <String, String>{};
+      for (final app in installed) {
+        nameMap[app['packageName'] ?? ''] = app['appName'] ?? '';
+      }
+      for (final app in _apps) {
+        final correctName = nameMap[app.packageName];
+        if (correctName != null && correctName.isNotEmpty && correctName != app.appName) {
+          await _db.updateAppName(app.packageName, correctName);
+        }
+      }
+      _apps = await _db.getMonitoredApps();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to refresh app names: $e');
+    }
+  }
+
   /// Reset limit back to the default (30 min). Only allowed if the
   /// current limit is below 30. Returns true on success.
   Future<bool> resetLimitToDefault(String packageName) async {

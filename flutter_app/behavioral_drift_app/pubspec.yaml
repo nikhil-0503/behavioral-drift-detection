@@ -60,6 +60,12 @@ dependencies:
   # HTTP client
   http: ^1.2.2
 
+  # Cloud Firestore for cross-device sync
+  cloud_firestore: ^5.0.0
+
+  # Device identification
+  device_info_plus: ^10.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

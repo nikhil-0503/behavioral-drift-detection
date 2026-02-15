@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/permission_service.dart';
 import '../models/monitored_app.dart';
 import '../models/realtime_drift.dart';
+import 'app_detail_page.dart';
 
 /// Modern, accountability-focused dashboard with real-time drift summaries,
 /// per-app usage cards, and behavioral nudges.
@@ -124,7 +125,11 @@ class _DashboardPageState extends State<DashboardPage> {
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+
+          // ── ML STATUS BANNER ──
+          _buildMlStatusBanner(driftSvc),
+          const SizedBox(height: 16),
 
           // ── DRIFT SCORE CHART ──
           if (drifts.isNotEmpty) ...[
@@ -137,7 +142,7 @@ class _DashboardPageState extends State<DashboardPage> {
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 12),
-            _buildDriftBarChart(drifts),
+            _buildDriftBarChart(drifts, apps),
             const SizedBox(height: 24),
           ],
 
@@ -241,6 +246,71 @@ class _DashboardPageState extends State<DashboardPage> {
       ],
     );
   }
+  Widget _buildMlStatusBanner(DriftDetectionService driftSvc) {
+    final mlActive = driftSvc.mlAvailable;
+    final mlResults = driftSvc.latestMlResults;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: mlActive
+            ? Colors.green.withOpacity(0.08)
+            : Colors.grey.withOpacity(0.08),
+        border: Border.all(
+          color: mlActive ? Colors.green.withOpacity(0.4) : Colors.grey.withOpacity(0.3),
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          Icon(
+            mlActive ? Icons.science : Icons.science_outlined,
+            color: mlActive ? Colors.greenAccent : Colors.grey,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mlActive ? 'ML Models Active' : 'ML: Local Only',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: mlActive ? Colors.greenAccent : Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  mlActive
+                      ? 'Isolation Forest + Autoencoder + Statistical (${mlResults.length} apps)'
+                      : 'Start backend server for full ML analysis',
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          if (mlActive)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'LIVE',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.greenAccent,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildPermissionsBanner(BuildContext context) {
     final perms = context.watch<PermissionService>();
@@ -287,19 +357,21 @@ class _DashboardPageState extends State<DashboardPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                final scaffold = ScaffoldMessenger.of(context);
-                scaffold.showSnackBar(
-                  const SnackBar(
-                    content: Text('Use the Settings button (⚙️) in the top-right to grant permissions'),
-                  ),
-                );
+                final permSvc = context.read<PermissionService>();
+                if (!permSvc.usageStatsGranted) {
+                  permSvc.requestUsageStats();
+                } else if (!permSvc.accessibilityGranted) {
+                  permSvc.requestAccessibility();
+                } else if (!permSvc.overlayGranted) {
+                  permSvc.requestOverlay();
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),
               child: const Text(
-                'Grant Permissions',
+                'Open Settings',
                 style: TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
@@ -309,7 +381,16 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildDriftBarChart(List<RealtimeDrift> drifts) {
+  Widget _buildDriftBarChart(List<RealtimeDrift> drifts, List<MonitoredApp> apps) {
+    // Build a map from packageName → appName for accurate labels
+    final nameMap = <String, String>{};
+    for (final app in apps) {
+      nameMap[app.packageName] = app.appName;
+    }
+    String appLabel(String packageName) {
+      return nameMap[packageName] ?? packageName.split('.').last;
+    }
+
     return SizedBox(
       height: 200,
       child: BarChart(
@@ -321,7 +402,7 @@ class _DashboardPageState extends State<DashboardPage> {
               getTooltipItem: (group, gi, rod, ri) {
                 final d = drifts[group.x.toInt()];
                 return BarTooltipItem(
-                  '${d.packageName.split('.').last}\n'
+                  '${appLabel(d.packageName)}\n'
                   '${(d.driftScore * 100).toStringAsFixed(0)}% drift',
                   const TextStyle(color: Colors.white, fontSize: 11),
                 );
@@ -345,14 +426,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 getTitlesWidget: (v, _) {
                   final i = v.toInt();
                   if (i >= drifts.length) return const SizedBox.shrink();
-                  final label = drifts[i]
-                      .packageName
-                      .split('.')
-                      .last;
+                  final label = appLabel(drifts[i].packageName);
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      label.length > 8 ? '${label.substring(0, 7)}…' : label,
+                      label.length > 10 ? '${label.substring(0, 9)}…' : label,
                       style:
                           const TextStyle(fontSize: 9, color: Colors.grey),
                     ),
@@ -448,29 +526,43 @@ class _AppUsageCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isBlocked
-                      ? Icons.block
-                      : (isWarn ? Icons.warning_amber : Icons.check_circle),
-                  color: barColor,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    app.appName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AppDetailPage(app: app),
+            ),
+          );
+          // Refresh after returning so updated limits are reflected
+          if (context.mounted) {
+            context.read<MonitoringService>().refreshUsage();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isBlocked
+                        ? Icons.block
+                        : (isWarn ? Icons.warning_amber : Icons.check_circle),
+                    color: barColor,
                   ),
-                ),
-                Text(
-                  '${usedMin.toStringAsFixed(0)}/${app.dailyLimitMinutes} min',
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      app.appName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                  Text(
+                    '${usedMin.toStringAsFixed(0)}/${app.dailyLimitMinutes} min',
                   style: TextStyle(
                       color: isBlocked ? Colors.red : Colors.grey,
                       fontWeight: FontWeight.w600,
@@ -519,6 +611,7 @@ class _AppUsageCard extends StatelessWidget {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );

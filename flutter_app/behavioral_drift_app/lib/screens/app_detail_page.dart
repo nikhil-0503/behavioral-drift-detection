@@ -109,7 +109,7 @@ class _AppDetailPageState extends State<AppDetailPage> {
                                 fontWeight: FontWeight.bold, fontSize: 16)),
                         const SizedBox(height: 4),
                         Text(
-                          'You can only reduce your limit (max ${LimitRules.maxLimitMinutes} min). '
+                          'Adjust your daily limit (1–${LimitRules.maxLimitMinutes} min). '
                           'Use "Reset to Default" to restore to ${LimitRules.defaultLimitMinutes} min.',
                           style: const TextStyle(color: Colors.grey, fontSize: 12),
                         ),
@@ -241,7 +241,7 @@ class _AppDetailPageState extends State<AppDetailPage> {
   }
 }
 
-/// Slider that only allows reducing the limit (leftward).
+/// Slider that allows changing the limit between 1 and 30 minutes.
 class _LimitSlider extends StatefulWidget {
   final MonitoredApp app;
 
@@ -257,7 +257,19 @@ class _LimitSliderState extends State<_LimitSlider> {
   @override
   void initState() {
     super.initState();
-    _value = widget.app.dailyLimitMinutes.toDouble();
+    _value = widget.app.dailyLimitMinutes
+        .toDouble()
+        .clamp(1.0, LimitRules.maxLimitMinutes.toDouble());
+  }
+
+  @override
+  void didUpdateWidget(covariant _LimitSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.app.packageName != widget.app.packageName) {
+      _value = widget.app.dailyLimitMinutes
+          .toDouble()
+          .clamp(1.0, LimitRules.maxLimitMinutes.toDouble());
+    }
   }
 
   @override
@@ -270,8 +282,8 @@ class _LimitSliderState extends State<_LimitSlider> {
         Slider(
           value: _value,
           min: 1,
-          max: currentLimit.toDouble(),
-          divisions: currentLimit - 1 > 0 ? currentLimit - 1 : 1,
+          max: LimitRules.maxLimitMinutes.toDouble(),
+          divisions: LimitRules.maxLimitMinutes - 1,
           label: '${_value.round()} min',
           onChanged: (v) => setState(() => _value = v),
         ),
@@ -280,32 +292,38 @@ class _LimitSliderState extends State<_LimitSlider> {
           children: [
             const Text('1 min',
                 style: TextStyle(fontSize: 11, color: Colors.grey)),
-            Text('$currentLimit min (current)',
+            Text('${LimitRules.maxLimitMinutes} min (max)',
                 style:
                     const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
+        if (currentLimit != LimitRules.maxLimitMinutes)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('Current limit: $currentLimit min',
+                style: const TextStyle(fontSize: 11, color: Colors.deepPurpleAccent)),
+          ),
         const SizedBox(height: 8),
-        if (_value.round() < currentLimit)
+        if (_value.round() != currentLimit)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
                 final monitor = context.read<MonitoringService>();
-                final ok = await monitor.reduceLimit(
+                final ok = await monitor.updateLimit(
                     widget.app.packageName, _value.round());
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(ok
-                        ? 'Limit reduced to ${_value.round()} min. No going back.'
-                        : 'Could not reduce limit.'),
+                        ? 'Limit set to ${_value.round()} min.'
+                        : 'Could not update limit.'),
                   ));
                   if (ok) Navigator.pop(context);
                 }
               },
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurpleAccent),
-              child: Text('Reduce to ${_value.round()} min'),
+              child: Text('Set to ${_value.round()} min'),
             ),
           ),
         if (canReset) ...[

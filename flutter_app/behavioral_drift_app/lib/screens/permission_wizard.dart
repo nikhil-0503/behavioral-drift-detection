@@ -170,15 +170,15 @@ class _PermissionWizardState extends State<PermissionWizard>
                       SizedBox(
                         width: double.infinity,
                         height: 52,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.settings),
-                          label: const Text('Grant Permission'),
+                        child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.deepPurpleAccent,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
                           ),
                           onPressed: _requestCurrent,
+                          child: const Text('Grant Permission',
+                              style: TextStyle(fontSize: 16)),
                         ),
                       ),
                     const SizedBox(height: 16),

@@ -131,6 +131,35 @@ class AppDatabase {
     return true;
   }
 
+  /// Update limit to any value in [1, 30]. Returns true if applied.
+  Future<bool> updateLimit(String packageName, int newLimitMinutes) async {
+    if (kIsWeb) return false;
+    if (newLimitMinutes <= 0 || newLimitMinutes > 30) return false;
+    final db = await database;
+    final rows = await db.query('monitored_apps',
+        where: 'package_name = ?', whereArgs: [packageName]);
+    if (rows.isEmpty) return false;
+    await db.update(
+      'monitored_apps',
+      {'daily_limit_minutes': newLimitMinutes},
+      where: 'package_name = ?',
+      whereArgs: [packageName],
+    );
+    return true;
+  }
+
+  /// Update the display name for a monitored app.
+  Future<void> updateAppName(String packageName, String newName) async {
+    if (kIsWeb) return;
+    final db = await database;
+    await db.update(
+      'monitored_apps',
+      {'app_name': newName},
+      where: 'package_name = ?',
+      whereArgs: [packageName],
+    );
+  }
+
   /// Reset limit to default (30 min). Only allowed if current < defaultLimit.
   Future<bool> resetLimitToDefault(
       String packageName, int defaultLimit) async {

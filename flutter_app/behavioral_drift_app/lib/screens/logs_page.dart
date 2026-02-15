@@ -57,6 +57,7 @@ import '../models/drift_day.dart';
 import '../services/monitoring_service.dart';
 import '../services/drift_detection_service.dart';
 import '../models/realtime_drift.dart';
+import '../models/monitored_app.dart';
 
 class LogsPage extends StatefulWidget {
   const LogsPage({super.key});
@@ -115,7 +116,9 @@ class _LogsPageState extends State<LogsPage> {
   @override
   Widget build(BuildContext context) {
     final driftSvc = context.watch<DriftDetectionService>();
+    final monitor = context.watch<MonitoringService>();
     final latestDrifts = driftSvc.latestDrifts;
+    final monitoredApps = monitor.apps;
 
     return Column(
       children: [
@@ -178,7 +181,7 @@ class _LogsPageState extends State<LogsPage> {
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 final d = latestDrifts[i];
-                return _LiveDriftChip(drift: d);
+                return _LiveDriftChip(drift: d, apps: monitoredApps);
               },
             ),
           ),
@@ -319,12 +322,15 @@ class _FilterChip extends StatelessWidget {
 
 class _LiveDriftChip extends StatelessWidget {
   final RealtimeDrift drift;
-  const _LiveDriftChip({required this.drift});
+  final List<MonitoredApp> apps;
+  const _LiveDriftChip({required this.drift, required this.apps});
 
   @override
   Widget build(BuildContext context) {
     final pct = (drift.driftScore * 100).toStringAsFixed(0);
-    final label = drift.packageName.split('.').last;
+    // Look up real app name from monitored apps
+    final matchedApp = apps.where((a) => a.packageName == drift.packageName).firstOrNull;
+    final label = matchedApp?.appName ?? drift.packageName.split('.').last;
     return Container(
       width: 140,
       padding: const EdgeInsets.all(10),

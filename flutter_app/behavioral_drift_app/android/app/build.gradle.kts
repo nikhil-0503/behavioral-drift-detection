@@ -11,9 +11,10 @@ plugins {
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-val hasKeystoreProperties = keystorePropertiesFile.exists()
-if (hasKeystoreProperties) {
+var hasKeystoreProperties = false
+if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    hasKeystoreProperties = keystoreProperties.getProperty("storeFile") != null
 }
 
 android {

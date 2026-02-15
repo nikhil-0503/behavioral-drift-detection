@@ -8,9 +8,10 @@ import 'services/auth_service.dart';
 import 'services/permission_service.dart';
 import 'services/monitoring_service.dart';
 import 'services/drift_detection_service.dart';
+import 'services/user_config_sync_service.dart';
+import 'services/device_binding_service.dart';
 
 import 'screens/login_page.dart';
-import 'screens/permission_wizard.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/stats_page.dart';
 import 'screens/logs_page.dart';
@@ -48,6 +49,8 @@ class _TimeoAppState extends State<TimeoApp> {
         ChangeNotifierProvider(create: (_) => PermissionService()),
         ChangeNotifierProvider(create: (_) => MonitoringService()),
         ChangeNotifierProvider(create: (_) => DriftDetectionService()),
+        ChangeNotifierProvider(create: (_) => UserConfigSyncService()),
+        ChangeNotifierProvider(create: (_) => DeviceBindingService()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -145,11 +148,35 @@ class _HomeShellState extends State<_HomeShell> {
         context.read<PermissionService>().checkAll();
         // Auto-start foreground service for real-time blocking
         await monitor.startForegroundService();
+        // Refresh app names from PackageManager for accuracy
+        await monitor.refreshAppNames();
+        // Sync config from/to Firestore if signed in
+        final auth = context.read<AuthService>();
+        if (auth.isSignedIn) {
+          final sync = context.read<UserConfigSyncService>();
+          await sync.syncBidirectional();
+          // Re-init monitoring after sync may have added new apps
+          await monitor.init();
+          // Verify device binding
+          final binding = context.read<DeviceBindingService>();
+          final ok = await binding.verifyDeviceBinding();
+          if (!ok && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'This account is bound to another device. '
+                  'Some features may be restricted.',
+                ),
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        }
       });
     }
   }
 
-  void _showPermissionsDialog(BuildContext context) {
+  void _openNextMissingPermission(BuildContext context) {
     if (defaultTargetPlatform != TargetPlatform.android) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permissions not needed on this platform')),
@@ -157,10 +184,27 @@ class _HomeShellState extends State<_HomeShell> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => _PermissionsDialog(),
-    );
+    final perms = context.read<PermissionService>();
+    if (!perms.usageStatsGranted) {
+      perms.requestUsageStats();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening Usage Stats settings…')),
+      );
+    } else if (!perms.accessibilityGranted) {
+      perms.requestAccessibility();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening Accessibility settings…')),
+      );
+    } else if (!perms.overlayGranted) {
+      perms.requestOverlay();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening Overlay settings…')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All permissions already granted ✓')),
+      );
+    }
   }
 
   @override
@@ -193,7 +237,7 @@ class _HomeShellState extends State<_HomeShell> {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings & Permissions',
-            onPressed: () => _showPermissionsDialog(context),
+            onPressed: () => _openNextMissingPermission(context),
           ),
           Switch(
             value: widget.isDark,
@@ -242,167 +286,6 @@ class _HomeShellState extends State<_HomeShell> {
             selectedIcon: Icon(Icons.info),
             label: 'About',
           ),
-        ],
-      ),
-    );
-  }
-}
-/// Permissions dialog for Android to request/check permissions
-class _PermissionsDialog extends StatefulWidget {
-  @override
-  State<_PermissionsDialog> createState() => _PermissionsDialogState();
-}
-
-class _PermissionsDialogState extends State<_PermissionsDialog> {
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    context.read<PermissionService>().checkAll();
-  }
-
-  Future<void> _requestPermission(Future<void> Function() requestFn) async {
-    setState(() => _loading = true);
-    try {
-      await requestFn();
-      // Check again after requesting
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) {
-        await context.read<PermissionService>().checkAll();
-      }
-    } catch (e) {
-      debugPrint('Error requesting permission: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final perms = context.watch<PermissionService>();
-    const padding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
-
-    return AlertDialog(
-      title: const Text('App Permissions'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Grant permissions to enable full functionality',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            // Usage Stats
-            _PermissionTile(
-              icon: Icons.bar_chart,
-              title: 'Usage Stats Access',
-              description: 'Monitor app usage patterns',
-              granted: perms.usageStatsGranted,
-              onRequest: _loading
-                  ? null
-                  : () => _requestPermission(
-                        context.read<PermissionService>().requestUsageStats,
-                      ),
-            ),
-            const SizedBox(height: 12),
-            // Accessibility
-            _PermissionTile(
-              icon: Icons.accessibility,
-              title: 'Accessibility Service',
-              description: 'Detect active app & block overlays',
-              granted: perms.accessibilityGranted,
-              onRequest: _loading
-                  ? null
-                  : () => _requestPermission(
-                        context.read<PermissionService>().requestAccessibility,
-                      ),
-            ),
-            const SizedBox(height: 12),
-            // Overlay
-            _PermissionTile(
-              icon: Icons.layers,
-              title: 'Overlay Permission',
-              description: 'Show blocking screen on limit',
-              granted: perms.overlayGranted,
-              onRequest: _loading
-                  ? null
-                  : () => _requestPermission(
-                        context.read<PermissionService>().requestOverlay,
-                      ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-      ],
-    );
-  }
-}
-
-class _PermissionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final bool granted;
-  final VoidCallback? onRequest;
-
-  const _PermissionTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.granted,
-    this.onRequest,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: granted ? Colors.green : Colors.grey.shade400,
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Icon(icon, color: granted ? Colors.green : Colors.orange),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          if (granted)
-            const Icon(Icons.check_circle, color: Colors.green)
-          else
-            ElevatedButton(
-              onPressed: onRequest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              ),
-              child: const Text(
-                'Grant',
-                style: TextStyle(fontSize: 12, color: Colors.white),
-              ),
-            ),
         ],
       ),
     );

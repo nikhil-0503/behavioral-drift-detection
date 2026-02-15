@@ -36,20 +36,49 @@ class MainActivity : FlutterActivity() {
                         result.success(map)
                     }
                     "requestUsageStats" -> {
-                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                        try {
+                            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "Failed to open usage stats settings", e)
+                        }
                         result.success(null)
                     }
                     "requestAccessibility" -> {
-                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        try {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "Failed to open accessibility settings", e)
+                            // Fallback: try opening generic Settings
+                            try {
+                                val fallback = Intent(Settings.ACTION_SETTINGS)
+                                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(fallback)
+                            } catch (_: Exception) {}
+                        }
                         result.success(null)
                     }
                     "requestOverlay" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:$packageName")
-                            )
-                            startActivity(intent)
+                            try {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:$packageName")
+                                )
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                android.util.Log.e("MainActivity", "Failed to open overlay settings", e)
+                                // Fallback: try without package URI
+                                try {
+                                    val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    startActivity(fallback)
+                                } catch (_: Exception) {}
+                            }
                         }
                         result.success(null)
                     }
@@ -124,6 +153,15 @@ class MainActivity : FlutterActivity() {
                             usageMap[pkg] = getUsageTodaySeconds(pkg)
                         }
                         result.success(usageMap)
+                    }
+                    "getAppName" -> {
+                        val pkg = call.argument<String>("packageName")
+                        if (pkg == null) {
+                            result.error("INVALID", "packageName required", null)
+                            return@setMethodCallHandler
+                        }
+                        val name = getAppNameFromPackage(pkg)
+                        result.success(name)
                     }
                     else -> result.notImplemented()
                 }
@@ -260,5 +298,15 @@ class MainActivity : FlutterActivity() {
         }
         result.sortBy { it["appName"]?.lowercase() }
         return result
+    }
+
+    private fun getAppNameFromPackage(packageName: String): String {
+        return try {
+            val pm = packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (e: PackageManager.NameNotFoundException) {
+            packageName.split(".").last()
+        }
     }
 }

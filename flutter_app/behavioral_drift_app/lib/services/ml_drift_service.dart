@@ -16,18 +16,18 @@ class MlDriftService {
 
     final payload = <Map<String, dynamic>>[];
     for (final app in apps) {
-      final history = await _db.getDailyUsageHistory(
+      final history = await _db.dailyTotals(
         app.packageName,
-        limit: historyDays,
+        historyDays,
       );
       if (history.isEmpty) continue;
 
       payload.add({
         'packageName': app.packageName,
-        'history': history
-            .map((row) => {
-                  'date': row['date'] as String,
-                  'minutes': (row['total_seconds'] as int) / 60.0,
+        'history': history.entries
+            .map((e) => {
+                  'date': e.key,
+                  'minutes': (e.value / 60.0),
                 })
             .toList(),
       });
