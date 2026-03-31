@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "245668768285",
+    "project_id": "behavioraldrift",
+    "storage_bucket": "behavioraldrift.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:245668768285:android:63ba6e9f19fe85e745f4f4",
+        "android_client_info": {
+          "package_name": "com.example.behavioral_drift_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "245668768285-5nsrd20qpgbooluc0u9jgpch12fblft9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.behavioral_drift_app",
+            "certificate_hash": "b1d9fc0fd5878e61251dcff35a5081eadd5bf42f"
+          }
+        },
+        {
+          "client_id": "245668768285-q4hive59t6h6pak5eeq84vckf4e52crv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxr2JcAersonCQhC7w1VhoNAvbX-Cpc0Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "245668768285-q4hive59t6h6pak5eeq84vckf4e52crv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
