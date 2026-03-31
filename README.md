@@ -1,569 +1,324 @@
-# 📱 Behavioral Drift Detection System
+# Behavioral Drift Detection
 
-> A comprehensive mobile application and machine learning system for detecting behavioral drift in smartphone users
+Behavioral Drift Detection is an end-to-end project that detects changes in smartphone usage behavior over time.
 
-## 🎯 Overview
+The repository includes:
+- A data preprocessing and feature engineering pipeline.
+- Multiple drift detection models (statistical, machine learning, deep learning).
+- A fusion layer that combines model outputs into a final daily drift decision.
+- A FastAPI backend for serving drift results and real-time drift analysis.
+- A Flutter mobile app for visualization and user interaction.
 
-Behavioral Drift Detection is an intelligent system that monitors and detects significant changes in smartphone user behavior patterns. By analyzing mobile device usage data, the system can identify when a user's daily habits deviate from their established baseline, which can indicate important life events, health concerns, or security issues.
+## Why This Project Exists
 
-This project combines a **Flutter mobile application** for data collection and real-time monitoring with a **Python ML backend** for sophisticated behavioral analysis using multiple detection algorithms.
+Smartphone behavior can reveal routine changes that may be relevant for:
+- digital wellbeing,
+- habit tracking,
+- anomaly awareness,
+- research on user behavior patterns.
 
----
+A single model can be noisy or brittle. This project uses a multi-model approach and fuses predictions to improve robustness.
 
-## ❓ Why Behavioral Drift Detection?
+## What The Project Does
 
-### Problem Statement
-Smartphones have become ubiquitous, and smartphone usage patterns reflect our daily routines, mental health, social interactions, and overall well-being. Detecting significant deviations from a user's normal behavior can be valuable for:
+At a high level, the system:
+1. Builds daily behavioral features from raw smartphone logs (app usage events + phone unlock events).
+2. Detects drift using three independent approaches:
+   - Statistical z-score detector,
+   - Isolation Forest detector,
+   - Autoencoder reconstruction-error detector.
+3. Fuses model votes into a final confidence score and drift flag.
+4. Exports results for both backend API responses and Flutter UI visualization.
 
-- **Health Monitoring**: Identifying potential health issues through changes in sleep patterns or app usage
-- **Mental Health**: Detecting depression, anxiety, or stress through unusual behavioral changes
-- **Security**: Identifying compromised accounts or unauthorized device usage
-- **Research**: Understanding behavioral patterns in large populations
-- **Personal Insights**: Understanding personal habits and lifestyle changes
+## How It Works
 
-This system automates behavioral drift detection, making it practical for widespread deployment.
+### 1. Data Flow
 
----
+Raw data is under `data/raw/...`.
 
-## 🔬 How It Works
+Preprocessing outputs:
+- `data/processed/app_usage_daily.csv`
+- `data/processed/phonelock_daily.csv`
+- `data/processed/daily_features.csv`
+- `data/processed/daily_features_expanded.csv`
 
-### System Architecture
+Model outputs:
+- `data/processed/statistical_drift_results.csv`
+- `data/processed/isolation_forest_results.csv`
+- `data/processed/autoencoder_drift_results.csv`
 
-The system operates in three main phases:
+Fusion outputs:
+- `data/processed/final_drift_output.csv`
+- `data/processed/final_drift_output.json`
 
-```
-Data Collection (Flutter App)
-        ↓
-    Data Processing & Feature Engineering (ML Pipeline)
-        ↓
-    Multiple Drift Detection Algorithms
-        ↓
-    Results Fusion & Visualization (Flutter App)
-```
+Flutter export:
+- `flutter_app/behavioral_drift_app/assets/drift_results.json`
 
-### Detection Algorithms
+### 2. Feature Engineering
 
-The system employs **three complementary approaches** for robust drift detection:
+Core daily features are built from:
+- app event count per day,
+- unlock count per day.
 
-#### 1. **Statistical Drift Detection**
-- Establishes baseline statistics (mean, std) from first 7 days
-- Uses Z-score analysis to detect anomalies
-- Flags when feature values deviate by 2+ standard deviations
-- **Advantage**: Simple, interpretable, no model training needed
+Expanded features include:
+- log transforms,
+- rolling mean and rolling std,
+- day-to-day deltas,
+- ratio-to-baseline features,
+- composite intensity and instability scores.
 
-#### 2. **Isolation Forest**
-- Unsupervised anomaly detection algorithm
-- Isolates anomalous behavior patterns
-- Learns normal behavior from baseline period
-- **Advantage**: Detects complex multivariate anomalies
+### 3. Drift Models
 
-#### 3. **Autoencoder (Deep Learning)**
-- Neural network-based reconstruction approach
-- Learns to compress and reconstruct normal behavior
-- High reconstruction error indicates anomalies
-- **Advantage**: Captures non-linear relationships in behavior
+#### A) Statistical Drift (`ml/models/statistical_drift.py`)
+- Baseline: first 7 days.
+- Computes per-feature z-scores.
+- Marks drift when absolute z-score crosses threshold.
 
-### Feature Engineering
+#### B) Isolation Forest (`ml/models/isolation_forest.py`)
+- Standardizes expanded features.
+- Trains unsupervised anomaly detector.
+- Predicts anomalous days as drift days.
 
-The system extracts behavioral features from raw sensor data:
+#### C) Autoencoder (`ml/models/autoencoder_drift.py`)
+- Trains autoencoder on baseline window.
+- Uses reconstruction error as drift score.
+- Threshold based on baseline error distribution.
 
-- **App Usage**: Most used apps, app switching frequency, total screen time
-- **Communication**: Call frequency/duration, SMS count
-- **Lock/Unlock**: Phone lock patterns, usage intensity
-- **Calendar**: Event frequency, meeting patterns
-- **Location**: Movement patterns, visited places
+### 4. Fusion Logic
 
----
+Fusion script: `ml/fusion/generate_final_output.py`
 
-## 📊 Dataset
+It merges model outputs by date and computes:
+- vote count from three detectors,
+- confidence = votes / 3,
+- final drift flag using confidence threshold.
 
-The system includes support for comprehensive mobile sensing data:
+Current threshold logic marks drift at confidence >= 0.34 (at least one model votes drift).
 
-### Data Sources
-- **App Usage**: Running apps per user
-- **Calibration Data**: Device calibration timestamps
-- **Call Logs**: Incoming/outgoing call records
-- **Dining Patterns**: Location-based eating data
-- **Education**: Educational activity data
-- **EMA (Experience Sampling)**: User-reported experiences
-- **Sensing**: Raw sensor readings
-- **SMS**: Text message logs
-- **StudentLife Survey**: Long-term user surveys
-- **Calendar Events**: Schedule information
+## Repository Layout
 
-### Processed Output
-- Daily aggregated features
-- Drift detection results (statistical, Isolation Forest, Autoencoder)
-- Fused final predictions
-- JSON outputs for app consumption
-
----
-
-## 🛠 Technology Stack
-
-### Backend
-- **Framework**: FastAPI (Python web framework)
-- **Machine Learning**: Scikit-learn, PyTorch, NumPy, Pandas
-- **Database Ready**: Supporting JSON outputs for mobile integration
-- **API Server**: Uvicorn (ASGI server)
-
-### Frontend
-- **Framework**: Flutter (Cross-platform mobile)
-- **UI Components**: Material Design, FL Chart library
-- **State Management**: Provider pattern
-- **Database**: SQLite (local persistence)
-- **Authentication**: Firebase Auth with Google Sign-In
-- **Real-time Features**: Flutter integration with ML models
-
-### Development Environment
-- Python 3.10+
-- Dart/Flutter SDK 3.10.4+
-- Deep learning support via PyTorch
-
----
-
-## 📁 Project Structure
-
-```
-behavioral-drift-detection/
-├── backend/                          # FastAPI backend server
-│   ├── api.py                       # Main API endpoints
-│   ├── requirements.txt             # Python dependencies
-│   └── __pycache__/
-│
-├── ml/                              # Machine Learning pipeline
-│   ├── models/
-│   │   ├── statistical_drift.py    # Statistical analysis
-│   │   ├── isolation_forest.py     # Isolation Forest model
-│   │   └── autoencoder_drift.py    # Deep learning model
-│   ├── preprocessing/
-│   │   ├── app_usage_features.py   # App usage feature extraction
-│   │   ├── phonelock_features.py   # Phone unlock pattern features
-│   │   ├── feature_expansion.py    # Feature engineering
-│   │   └── merge_daily_features.py # Aggregation
-│   ├── inference/
-│   │   └── drift_fusion.py         # Model prediction fusion
-│   ├── fusion/
-│   │   ├── export_for_flutter.py   # Export results for app
-│   │   └── generate_final_output.py # Final result generation
-│   └── notebooks/
-│       └── exploration.ipynb        # Data exploration
-│
-├── flutter_app/                     # Mobile application
-│   └── behavioral_drift_app/
-│       ├── lib/
-│       │   ├── main.dart           # App entry point
-│       │   ├── screens/            # UI screens
-│       │   ├── models/             # Data models
-│       │   ├── services/           # API & Backend services
-│       │   ├── widgets/            # Reusable widgets
-│       │   ├── data/               # Local data access
-│       │   ├── config/             # Configuration
-│       │   └── firebase_options.dart # Firebase config
-│       ├── android/                # Android configuration
-│       ├── ios/                    # iOS configuration
-│       ├── web/                    # Web configuration
-│       ├── linux/                  # Linux configuration
-│       ├── macos/                  # macOS configuration
-│       ├── windows/                # Windows configuration
-│       ├── assets/                 # Images & resources
-│       ├── pubspec.yaml            # Flutter dependencies
-│       └── test/                   # Flutter tests
-│
-├── data/
-│   ├── raw/                        # Raw sensor data
-│   │   ├── app_usage/             # App usage CSVs
-│   │   ├── calendar/              # Calendar events
-│   │   ├── call_log/              # Call records
-│   │   ├── sms/                   # Text messages
-│   │   └── ...                    # Other sensors
-│   └── processed/                  # Processed outputs
-│       ├── daily_features.csv      # Daily behavioral features
-│       ├── statistical_drift_results.csv
-│       ├── isolation_forest_results.csv
-│       ├── autoencoder_drift_results.csv
-│       └── final_drift_output.json # Final fused results
-│
-└── docs/                           # Documentation
-    ├── problem_statement.md
-    ├── methodology.md
-    ├── dataset_description.md
-    └── contribution_of_members.md
+```text
+backend/                 FastAPI service
+ml/preprocessing/        Feature extraction and preprocessing scripts
+ml/models/               Statistical, Isolation Forest, Autoencoder scripts
+ml/fusion/               Fusion + export scripts
+data/raw/                Input dataset
+data/processed/          Intermediate and final outputs
+flutter_app/             Flutter mobile app
+docs/                    Project documentation and architecture assets
 ```
 
----
+## Download The Project
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Python 3.10 or higher**
-- **Flutter SDK 3.10.4 or higher**
-- **Git**
-- **A code editor** (VS Code, Android Studio, or similar)
-
-#### System Requirements
-- **OS**: Windows, macOS, or Linux
-- **RAM**: Minimum 4GB (8GB recommended for ML model training)
-- **Disk Space**: 2GB for dependencies and data
-
-### Installation
-
-#### Step 1: Clone the Repository
+## Option 1: Git clone
 
 ```bash
-git clone https://github.com/yourusername/behavioral-drift-detection.git
+git clone <YOUR_REPO_URL>
 cd behavioral-drift-detection
 ```
 
-#### Step 2: Set Up Backend (Python/ML)
+## Option 2: ZIP download
 
-##### 2.1 Create Python Virtual Environment
+1. Download ZIP from your Git hosting page.
+2. Extract to a folder.
+3. Open the extracted folder in VS Code.
+
+## Prerequisites
+
+## Python + Backend
+- Python 3.10+ recommended.
+- `pip`.
+
+## Flutter App
+- Flutter SDK installed and configured.
+- Dart SDK (comes with Flutter).
+- Android Studio (for Android emulator/device tooling).
+- Firebase project (for Google Sign-In in app).
+
+## Quick Start (Use Existing Processed Outputs)
+
+This is the fastest way to run the project without regenerating all ML artifacts.
+
+### 1) Start backend API
+
+From project root:
 
 ```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-##### 2.2 Install Python Dependencies
-
-```bash
-pip install --upgrade pip
 cd backend
 pip install -r requirements.txt
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
 
-##### 2.3 Verify Installation
+Health check:
+- Open `http://localhost:8000/health`
 
-```bash
-python -c "import fastapi, torch, pandas, sklearn; print('✅ All dependencies installed!')"
-```
+### 2) Run Flutter app
 
-#### Step 3: Set Up ML Pipeline
-
-The ML models are located in the `ml/` directory. They can be run independently or through the FastAPI backend.
-
-```bash
-# From project root
-cd ml/preprocessing
-python merge_daily_features.py          # Aggregate daily features
-```
-
-#### Step 4: Set Up Flutter Application
-
-##### 4.1 Navigate to Flutter App
+From project root:
 
 ```bash
 cd flutter_app/behavioral_drift_app
-```
-
-##### 4.2 Get Flutter Dependencies
-
-```bash
 flutter pub get
-```
-
-##### 4.3 Configure Firebase (Optional but Recommended)
-
-Update Firebase configuration in `lib/firebase_options.dart` with your Firebase project credentials.
-
-##### 4.4 Run the App
-
-**On Emulator/Simulator:**
-```bash
 flutter run
 ```
 
-**On Physical Device:**
-```bash
-# First, ensure your device is connected
-flutter devices
-flutter run
-```
+Notes:
+- On Android emulator, backend base URL is `http://10.0.2.2:8000`.
+- On web/desktop, backend base URL is `http://localhost:8000`.
 
----
+## Full Reproduction (End-to-End Pipeline)
 
-## 📖 How to Use
+If you want to regenerate all derived files from raw data, run scripts in this order.
 
-### Running the Backend API
+Important: `ml/preprocessing` scripts use relative paths, so run them from the `ml/preprocessing` directory.
 
-```bash
-cd backend
-uvicorn api:app --reload --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-**API Documentation**: Navigate to `http://localhost:8000/docs` for interactive Swagger UI
-
-### Key API Endpoints
-
-```
-POST   /analyze          - Run drift detection analysis
-GET    /results          - Fetch latest drift detection results
-GET    /health          - Health check
-GET    /models/status   - Model status information
-```
-
-### Using the Flutter Application
-
-1. **Launch the app** on your device/emulator
-2. **Sign in** using your Google account (Firebase Auth)
-3. **Grant permissions** for data collection (if applicable)
-4. **View Dashboard**: See real-time behavioral drift alerts
-5. **Explore Patterns**: View your behavioral patterns over time
-6. **Check Alerts**: Review any detected behavioral drift events
-
-### Running ML Pipeline Manually
+### Step A: Build daily features
 
 ```bash
-# Feature Engineering
 cd ml/preprocessing
 python app_usage_features.py
 python phonelock_features.py
-python feature_expansion.py
 python merge_daily_features.py
-
-# Model Training & Inference
-cd ml/models
-python statistical_drift.py
-python isolation_forest.py
-python autoencoder_drift.py
-
-# Fusion (Combine results from all 3 models)
-cd ml/inference
-python drift_fusion.py
-
-# Export for Flutter
-cd ml/fusion
-python export_for_flutter.py
+python feature_expansion.py
 ```
 
-### Expected Workflow
+### Step B: Run drift models
 
-```
-1. Data Collection
-   └─ Flask app collects sensor data from phones
-
-2. Feature Engineering
-   └─ Extract behaviors from raw data
-
-3. Model Training & Inference
-   └─ Statistical Analysis / Isolation Forest / Autoencoder
-
-4. Results Fusion
-   └─ Combine predictions from multiple models
-
-5. Export & Visualization
-   └─ Results available in Flutter app via API
-```
-
----
-
-## 📊 Understanding Results
-
-### Output Files
-
-#### CSV Results
-- **statistical_drift_results.csv**: Z-score based detection
-- **isolation_forest_results.csv**: Anomaly scores
-- **autoencoder_drift_results.csv**: Reconstruction error
-
-#### Fusion Output
-- **final_drift_output.csv**: Combined prediction from all 3 models
-- **final_drift_output.json**: JSON format for API consumption
-
-### Result Interpretation
-
-**Drift Score**: 0.0 - 1.0 (higher = more drift)
-- 0.0 - 0.3: Normal behavior
-- 0.3 - 0.7: Moderate drift
-- 0.7 - 1.0: Significant drift detected
-
-**Drift Flags**: Boolean (true/false)
-- `true`: Behavioral drift detected
-- `false`: Behavior within normal baseline
-
----
-
-## 🔧 Configuration
-
-### Backend Configuration
-
-Edit `backend/api.py` to configure:
-
-```python
-# API Port
-HOST = "0.0.0.0"
-PORT = 8000
-
-# CORS settings
-allow_origins = ["*"]  # Restrict in production
-
-# Model paths
-MODEL_PATH = "path/to/models"
-DATA_PATH = "path/to/data"
-```
-
-### Flutter Configuration
-
-Edit `flutter_app/behavioral_drift_app/lib/config/app_config.dart` to configure:
-
-```dart
-const String API_BASE_URL = "http://localhost:8000";
-const int API_TIMEOUT_SECONDS = 30;
-const int SYNC_INTERVAL_MINUTES = 60;
-```
-
----
-
-## 🧪 Testing
-
-### Backend Tests
+From project root:
 
 ```bash
-cd backend
-pytest tests/
+python ml/models/statistical_drift.py
+python ml/models/isolation_forest.py
+python ml/models/autoencoder_drift.py
 ```
 
-### Flutter Tests
+### Step C: Fuse outputs
+
+From project root:
 
 ```bash
-cd flutter_app/behavioral_drift_app
-flutter test
+python ml/fusion/generate_final_output.py
 ```
 
----
+Optional export for Flutter asset:
 
-## 📈 Performance Considerations
-
-- **Statistical Drift**: Fast, minimal computation
-- **Isolation Forest**: Moderate speed, scales well
-- **Autoencoder**: Slower, requires GPU for optimal performance
-- **Fusion**: Combines predictions efficiently
-
-### Optimization Tips
-
-1. Use GPU acceleration for autoencoder (PyTorch + CUDA)
-2. Cache processed features to avoid recomputation
-3. Use batch processing for multiple users
-4. Implement incremental learning for streaming data
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-### How to Contribute
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** changes (`git commit -m 'Add amazing-feature'`)
-4. **Push** to branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Contribution Guidelines
-
-- Follow PEP 8 (Python) and Dart style guides
-- Add tests for new features
-- Update documentation
-- Keep commits atomic and descriptive
-
----
-
-## 🐛 Troubleshooting
-
-### Backend Issues
-
-**Port Already in Use**
 ```bash
-# Change port in api.py or
-lsof -i :8000  # Find process
-kill -9 <PID>  # Kill process
+python ml/fusion/export_for_flutter.py
 ```
 
-**Models Not Loading**
-- Check file paths in `backends/api.py`
-- Ensure all required packages are installed
+### Step D: Start backend and app
 
-### Flutter Issues
+Follow the same backend and Flutter commands from Quick Start.
 
-**Dependency Conflicts**
-```bash
-flutter clean
-flutter pub get
-flutter pub upgrade
+## Backend API Reference
+
+Base URL: `http://localhost:8000`
+
+### `GET /health`
+Returns service status and whether fused drift JSON is available.
+
+### `GET /drift/days?limit=N`
+Returns drift timeline entries from `data/processed/final_drift_output.json`.
+
+### `GET /drift/summary`
+Returns:
+- total days,
+- total drift days,
+- last drift date,
+- average confidence,
+- latest date.
+
+### `POST /drift/recompute`
+Runs fusion script (`ml/fusion/generate_final_output.py`) and updates final outputs.
+
+### `POST /ml/drift/apps`
+Real-time model endpoint that accepts per-app daily usage history and returns fused ML drift analysis.
+
+Example payload:
+
+```json
+{
+  "apps": [
+    {
+      "packageName": "com.example.app",
+      "history": [
+        { "date": "2026-03-20", "minutes": 32 },
+        { "date": "2026-03-21", "minutes": 75 },
+        { "date": "2026-03-22", "minutes": 40 }
+      ]
+    }
+  ]
+}
 ```
 
-**Firebase Authentication Issues**
-- Verify Firebase project credentials
-- Check internet connectivity
-- Review Firebase console console for errors
+## Flutter App Notes
 
-### Common Errors
+Flutter module path:
+- `flutter_app/behavioral_drift_app`
 
-| Error | Solution |
-|-------|----------|
-| `ModuleNotFoundError: No module named 'torch'` | `pip install torch` |
-| `ConnectionRefusedError` | Ensure backend API is running on correct port |
-| `CORS error` | Check API CORS configuration |
-| `Device not found` | Connect device and run `flutter devices` |
+Key capabilities:
+- Firebase authentication with Google Sign-In.
+- Dashboard/statistics/log views.
+- Real-time drift API integration.
+- Local persistence + optional cloud sync services.
+- Android-focused monitoring and permission workflow.
 
----
+### Firebase/Google Auth Setup (Required for Sign-In)
 
-## 📝 License
+See app-specific guide:
+- `flutter_app/behavioral_drift_app/README.md`
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+At minimum:
+1. Enable Google provider in Firebase Authentication.
+2. Replace `android/app/google-services.json` with your Firebase file.
+3. Configure iOS plist if building iOS.
+4. Re-run `flutter clean` and `flutter pub get`.
 
----
+If authentication is not needed for your demo, you can still inspect backend outputs independently.
 
-## 📞 Support & Contact
+## Common Issues and Fixes
 
-### Questions or Issues?
+### Backend fails to start
+- Confirm you installed packages from `backend/requirements.txt`.
+- Ensure Python environment has `torch`, `scikit-learn`, `fastapi`, and `uvicorn`.
 
-- **GitHub Issues**: [Open an issue](https://github.com/yourusername/behavioral-drift-detection/issues)
-- **Email**: your-email@example.com
-- **Documentation**: See `docs/` folder
+### `GET /drift/days` returns empty list
+- Ensure `data/processed/final_drift_output.json` exists.
+- Run `python ml/fusion/generate_final_output.py` first.
 
-### References
+### Flutter cannot reach backend
+- Verify backend is running on port 8000.
+- On Android emulator use `10.0.2.2`, not `localhost`.
 
-- [Flutter Documentation](https://flutter.dev/docs)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Scikit-learn](https://scikit-learn.org/)
-- [PyTorch](https://pytorch.org/)
+### Google Sign-In error (`ApiException: 10` / `DEVELOPER_ERROR`)
+- Register correct SHA keys in Firebase.
+- Re-download and replace `google-services.json`.
 
----
+### Script path errors during preprocessing
+- Run preprocessing scripts from `ml/preprocessing` so relative paths resolve correctly.
 
-## 🎓 Academic Information
+## Suggested Development Workflow
 
-**Course**: Mobile Application Development Lab
-**Level**: Third Year, 6th Semester
+1. Create and verify processed features.
+2. Run all model scripts.
+3. Generate fused output.
+4. Start backend and validate `/health` and `/drift/summary`.
+5. Start Flutter app and verify UI data flow.
 
-**Team Members**: See [contribution_of_members.md](docs/contribution_of_members.md)
+## Team/Academic Context
 
----
+This repository appears structured as an academic lab project with separate components for:
+- data engineering,
+- model experimentation,
+- deployment-facing API,
+- mobile UI integration.
 
-## 🎉 Acknowledgments
+You can adapt it into:
+- a pure offline research pipeline,
+- a backend-only drift service,
+- or a full mobile + backend demo system.
 
-- Flutter and FastAPI community
-- Open-source ML libraries (scikit-learn, PyTorch, pandas)
-- Firebase for authentication and backend services
-- All contributors and testers
+## License
 
----
-
-<div align="center">
-
-**Made with ❤️ by the Behavioral Drift Detection Team**
-
-[⭐ Star us on GitHub](https://github.com/yourusername/behavioral-drift-detection) | [🐛 Report Issues](https://github.com/yourusername/behavioral-drift-detection/issues)
-
-</div>
+No explicit license file is currently present in the repository.
+If you plan to distribute this project, add a `LICENSE` file and attribution rules.
