@@ -1,4 +1,4 @@
-# Behavioral Drift Detection
+# Timeo - Behavioral Drift Detection
 
 Behavioral Drift Detection is an end-to-end project that detects changes in smartphone usage behavior over time.
 
